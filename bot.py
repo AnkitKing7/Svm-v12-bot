@@ -28,10 +28,10 @@ load_dotenv()
 
 # Load environment variables
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
-BOT_NAME = os.getenv('BOT_NAME', 'SVM V11.2')
+BOT_NAME = os.getenv('BOT_NAME', 'SVM V12')
 PREFIX = os.getenv('PREFIX', '!')
 YOUR_SERVER_IP = os.getenv('YOUR_SERVER_IP', '127.0.0.1')
-MAIN_ADMIN_ID = int(os.getenv('MAIN_ADMIN_ID') or '1210291131301101618')
+MAIN_ADMIN_ID = int(os.getenv('MAIN_ADMIN_ID') or 1405866008127864852')
 VPS_USER_ROLE_ID = int(os.getenv('VPS_USER_ROLE_ID') or '1210291131301101618')
 DEFAULT_STORAGE_POOL = os.getenv('DEFAULT_STORAGE_POOL', 'default')
 def svm_build_host_motd():
