@@ -18,7 +18,7 @@
 # ══════════════════════════════════════════════════════════════════════════════
 set -Eeuo pipefail
 
-REPO="${SVM_REPO:-https://github.com/AnkitKing7/Svm-v11.2-bot.git}"
+REPO="${SVM_REPO:-https://github.com/AnkitKing7/Svm-v12-bot.git}"
 BRANCH="${SVM_BRANCH:-main}"
 APP_DIR="${SVM_DIR:-/opt/svm}"
 SERVICE="${SVM_SERVICE:-svm}"
