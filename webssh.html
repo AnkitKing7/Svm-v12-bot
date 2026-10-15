@@ -1,0 +1,4246 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#070a12">
+<meta name="color-scheme" content="dark light">
+<meta name="svm-webssh-version" content="2.0.0">
+<meta name="svm-websocket-url" content="">
+<title id="page-title">Web SSH • SVM+</title>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.css">
+<style>
+
+/* ==========================================================================
+   SVM+ WEBSSH PRO
+   Production-oriented single-file frontend.
+   Backend contract:
+   POST /api/ssh/connect
+   POST /api/ssh/read
+   POST /api/ssh/write
+   POST /api/ssh/resize
+   POST /api/ssh/disconnect
+   GET  /api/health
+   Optional WebSocket:
+   window.SVM_WEBSSH_WS_URL or meta[name="svm-websocket-url"]
+   ========================================================================== */
+
+:root {
+  --bg: #070a12;
+  --bg-soft: #0a0f1b;
+  --panel: #0d1220;
+  --panel-2: #121a2b;
+  --panel-3: #182238;
+  --card: #101827;
+  --text: #edf2ff;
+  --text-soft: #b9c3db;
+  --muted: #7f8aa5;
+  --faint: #536078;
+  --border: rgba(255,255,255,.09);
+  --border-strong: rgba(255,255,255,.16);
+  --accent: #735cff;
+  --accent-2: #9b8cff;
+  --accent-soft: rgba(115,92,255,.15);
+  --cyan: #24d6d2;
+  --green: #32d583;
+  --yellow: #f4bd50;
+  --red: #ff5e72;
+  --orange: #ff8d4d;
+  --terminal: #05070c;
+  --terminal-text: #d9e1f2;
+  --terminal-cursor: #9b8cff;
+  --selection: rgba(115,92,255,.38);
+  --shadow-xl: 0 30px 100px rgba(0,0,0,.42);
+  --shadow-lg: 0 18px 55px rgba(0,0,0,.30);
+  --radius-xl: 24px;
+  --radius-lg: 18px;
+  --radius-md: 13px;
+  --radius-sm: 10px;
+  --header-h: 64px;
+  --toolbar-h: 48px;
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+:root[data-theme="light"] {
+  --bg: #f3f6fb;
+  --bg-soft: #e9eef7;
+  --panel: #ffffff;
+  --panel-2: #eef2f8;
+  --panel-3: #e5eaf3;
+  --card: #ffffff;
+  --text: #172033;
+  --text-soft: #4f5d76;
+  --muted: #69758c;
+  --faint: #8993a8;
+  --border: rgba(20,30,50,.10);
+  --border-strong: rgba(20,30,50,.18);
+  --terminal: #080b12;
+  --terminal-text: #dce4f4;
+  --shadow-xl: 0 30px 100px rgba(37,50,80,.16);
+  --shadow-lg: 0 18px 55px rgba(37,50,80,.12);
+}
+
+:root[data-theme="solarized"] {
+  --bg: #002b36;
+  --bg-soft: #073642;
+  --panel: #073642;
+  --panel-2: #0b4452;
+  --panel-3: #104d5b;
+  --card: #073642;
+  --text: #eee8d5;
+  --text-soft: #d5cfb9;
+  --muted: #93a1a1;
+  --faint: #718989;
+  --border: rgba(255,255,255,.11);
+  --border-strong: rgba(255,255,255,.18);
+  --accent: #b58900;
+  --accent-2: #d6a900;
+  --accent-soft: rgba(181,137,0,.18);
+  --terminal: #002b36;
+  --terminal-text: #eee8d5;
+  --terminal-cursor: #d6a900;
+  --selection: rgba(181,137,0,.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  background: var(--bg);
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100%;
+  height: 100%;
+  margin: 0;
+  background:
+    radial-gradient(circle at 15% -10%, rgba(115,92,255,.18), transparent 32%),
+    radial-gradient(circle at 100% 0%, rgba(36,214,210,.08), transparent 28%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  padding:
+    env(safe-area-inset-top)
+    env(safe-area-inset-right)
+    env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.app {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.app-header {
+  height: var(--header-h);
+  min-height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(13,18,32,.88);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  z-index: 50;
+}
+
+:root[data-theme="light"] .app-header {
+  background: rgba(255,255,255,.90);
+}
+
+.brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: white;
+  background:
+    linear-gradient(135deg, var(--accent), var(--cyan));
+  box-shadow: 0 10px 28px rgba(115,92,255,.25);
+  font-weight: 900;
+  font-size: 20px;
+}
+
+.brand-copy {
+  min-width: 0;
+}
+
+.brand-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.2px;
+  white-space: nowrap;
+}
+
+.brand-subtitle {
+  margin: 1px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.header-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+.connection-pill {
+  min-width: 0;
+  max-width: 300px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text-soft);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connection-pill strong {
+  color: var(--text);
+  font-weight: 750;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.status-dot.connected {
+  background: var(--green);
+  box-shadow: 0 0 12px rgba(50,213,131,.75);
+}
+
+.status-dot.connecting {
+  background: var(--yellow);
+  box-shadow: 0 0 12px rgba(244,189,80,.5);
+  animation: svm-pulse 1s infinite ease-in-out;
+}
+
+.status-dot.error {
+  background: var(--red);
+  box-shadow: 0 0 12px rgba(255,94,114,.4);
+}
+
+@keyframes svm-pulse {
+  50% {
+    opacity: .35;
+    transform: scale(.75);
+  }
+}
+
+.icon-button {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel-2);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease;
+}
+
+.icon-button:hover {
+  border-color: var(--border-strong);
+  background: var(--panel-3);
+  transform: translateY(-1px);
+}
+
+.icon-button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.page {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+
+.connect-view {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+}
+
+.connect-layout {
+  width: min(1080px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(330px, .9fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+.hero-panel,
+.connect-card,
+.info-card {
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.025), transparent 38%),
+    var(--panel);
+  box-shadow: var(--shadow-xl);
+}
+
+.hero-panel {
+  min-height: 590px;
+  border-radius: var(--radius-xl);
+  padding: 34px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-panel::before {
+  content: "";
+  position: absolute;
+  width: 380px;
+  height: 380px;
+  right: -150px;
+  top: -160px;
+  border-radius: 50%;
+  background: rgba(115,92,255,.14);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.hero-panel::after {
+  content: "";
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  left: -140px;
+  bottom: -150px;
+  border-radius: 50%;
+  background: rgba(36,214,210,.08);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.hero-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(115,92,255,.3);
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.hero-title {
+  position: relative;
+  max-width: 680px;
+  margin: 22px 0 12px;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: .98;
+  letter-spacing: -2.8px;
+}
+
+.hero-title span {
+  color: var(--accent-2);
+}
+
+.hero-description {
+  position: relative;
+  max-width: 620px;
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 15px;
+}
+
+.feature-grid {
+  position: relative;
+  margin-top: 34px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 10px;
+}
+
+.feature {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255,255,255,.018);
+}
+
+.feature-icon {
+  font-size: 19px;
+}
+
+.feature-title {
+  margin-top: 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.feature-text {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.connect-card {
+  min-height: 590px;
+  border-radius: var(--radius-xl);
+  padding: 28px;
+  overflow: hidden;
+}
+
+.card-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 5px;
+}
+
+.card-heading-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent-2);
+}
+
+.card-title {
+  margin: 0;
+  font-size: 21px;
+  letter-spacing: -.4px;
+}
+
+.card-subtitle {
+  margin: 0 0 22px 48px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.secure-banner {
+  display: none;
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  border: 1px solid rgba(50,213,131,.25);
+  border-radius: 12px;
+  background: rgba(50,213,131,.07);
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.secure-banner.visible {
+  display: block;
+}
+
+.secure-banner strong {
+  color: var(--green);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 120px;
+  gap: 11px;
+}
+
+.field {
+  margin: 0 0 13px;
+}
+
+.field-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.input-wrap {
+  position: relative;
+}
+
+.input {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.input::placeholder {
+  color: var(--faint);
+}
+
+.input:hover {
+  border-color: var(--border-strong);
+}
+
+.input:focus {
+  border-color: var(--accent);
+  background: var(--bg);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.password-input {
+  padding-right: 50px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  height: 38px;
+  min-width: 40px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  background: var(--panel-3);
+  color: var(--text);
+}
+
+.quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 3px;
+}
+
+.button {
+  min-height: 40px;
+  padding: 9px 13px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease, opacity .16s ease;
+  touch-action: manipulation;
+}
+
+.button:hover {
+  border-color: var(--border-strong);
+  background: var(--panel-3);
+  transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(0);
+}
+
+.button:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.button.primary {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 9px 24px rgba(115,92,255,.22);
+  font-weight: 800;
+}
+
+.button.danger {
+  border-color: rgba(255,94,114,.25);
+  background: rgba(255,94,114,.10);
+  color: #ffb1bc;
+}
+
+.button.ghost {
+  background: transparent;
+}
+
+.button.small {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+.button.wide {
+  width: 100%;
+}
+
+.connect-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-top: 17px;
+}
+
+.error-box {
+  display: none;
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255,94,114,.25);
+  border-radius: 12px;
+  background: rgba(255,94,114,.07);
+  color: #ffb5bf;
+  font-size: 12px;
+}
+
+.error-box.visible {
+  display: block;
+}
+
+.security-note {
+  margin-top: 17px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.security-note strong {
+  color: var(--text-soft);
+}
+
+.info-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.info-card {
+  padding: 11px;
+  border-radius: 13px;
+  box-shadow: none;
+}
+
+.info-card-value {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.info-card-label {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.terminal-view {
+  display: none;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--terminal);
+}
+
+.terminal-view.visible {
+  display: flex;
+}
+
+.terminal-header {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  z-index: 20;
+}
+
+.session-summary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.session-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-2);
+}
+
+.session-copy {
+  min-width: 0;
+}
+
+.session-title {
+  max-width: 430px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.session-detail {
+  margin-top: 1px;
+  max-width: 430px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.terminal-header-spacer {
+  flex: 1;
+}
+
+.terminal-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  background: var(--panel-2);
+  font-size: 10px;
+}
+
+.terminal-stat strong {
+  color: var(--text-soft);
+}
+
+.terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.terminal-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--terminal);
+}
+
+.terminal-container {
+  position: absolute;
+  inset: 0;
+  padding: 8px;
+}
+
+.xterm {
+  height: 100%;
+  padding: 0;
+}
+
+.xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.18) transparent;
+}
+
+.basic-terminal {
+  position: absolute;
+  inset: 0;
+  display: none;
+  overflow: auto;
+  padding: 13px;
+  white-space: pre-wrap;
+  color: var(--terminal-text);
+  font: 13px/1.55 var(--font-mono);
+}
+
+/* ---- mobile terminal: follow the visual viewport so the keyboard never covers the prompt ---- */
+body.vv-ready {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--vv-top, 0px);
+  height: var(--vv-h, 100dvh);
+  min-height: 0;
+}
+
+body.kb-open {
+  padding-bottom: 0;
+}
+
+.terminal-stage,
+.xterm,
+.xterm-screen {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+}
+
+.xterm-helper-textarea {
+  font-size: 16px !important;
+}
+
+.tap-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: none;
+  padding: 9px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  pointer-events: none;
+}
+
+.tap-hint.show {
+  display: block;
+}
+
+.mobile-keybar {
+  display: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  gap: 6px;
+  min-height: 45px;
+  padding: 5px 8px;
+  overflow-x: auto;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  scrollbar-width: none;
+}
+
+.mobile-keybar::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-key {
+  flex: 0 0 auto;
+  min-width: 42px;
+  height: 38px;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mobile-key.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-2);
+}
+
+.terminal-toolbar {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 9px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.toolbar-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.meta-chip {
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0,0,0,.60);
+  backdrop-filter: blur(8px);
+}
+
+.modal-backdrop.visible {
+  display: flex;
+}
+
+.modal {
+  width: min(620px, 100%);
+  max-height: min(720px, 90vh);
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  background: var(--panel);
+  box-shadow: var(--shadow-xl);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 17px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 15px;
+}
+
+.modal-header-spacer {
+  flex: 1;
+}
+
+.modal-body {
+  padding: 18px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 12px;
+}
+
+.setting {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: rgba(255,255,255,.015);
+}
+
+.setting.full {
+  grid-column: 1 / -1;
+}
+
+.setting-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.setting-description {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.select,
+.range,
+.checkbox {
+  width: 100%;
+}
+
+.select {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.range {
+  accent-color: var(--accent);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.check-row input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+}
+
+.search-bar {
+  position: absolute;
+  z-index: 30;
+  top: 10px;
+  right: 12px;
+  width: min(390px, calc(100% - 24px));
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+}
+
+.search-bar.visible {
+  display: flex;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 0;
+  outline: 0;
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.search-count {
+  min-width: 58px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 10px;
+}
+
+.toast-stack {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 200;
+  width: min(360px, calc(100vw - 36px));
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-size: 11px;
+  animation: toast-in .2s ease both;
+}
+
+.toast.success {
+  border-color: rgba(50,213,131,.25);
+}
+
+.toast.error {
+  border-color: rgba(255,94,114,.30);
+}
+
+.toast-icon {
+  flex: 0 0 auto;
+}
+
+.toast-message {
+  flex: 1;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.confirm-text {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: none;
+  place-items: center;
+  background: rgba(5,7,12,.45);
+  backdrop-filter: blur(3px);
+}
+
+.loading-overlay.visible {
+  display: grid;
+}
+
+.loading-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 15px;
+  border: 1px solid var(--border-strong);
+  border-radius: 13px;
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.spinner {
+  width: 17px;
+  height: 17px;
+  border: 2px solid rgba(255,255,255,.18);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .75s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fullscreen-mode .terminal-header {
+  display: none;
+}
+
+.fullscreen-mode .terminal-toolbar {
+  display: none;
+}
+
+.fullscreen-mode .mobile-keybar {
+  display: none !important;
+}
+
+.fullscreen-mode .terminal-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+}
+
+@media (max-width: 900px) {
+  .connect-layout {
+    grid-template-columns: 1fr;
+    max-width: 600px;
+  }
+
+  .hero-panel {
+    min-height: auto;
+  }
+
+  .hero-description {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --header-h: 56px;
+  }
+
+  body {
+    font-size: 13px;
+  }
+
+  .app-header {
+    padding: 7px 9px;
+  }
+
+  .brand-mark {
+    width: 33px;
+    height: 33px;
+    flex-basis: 33px;
+    border-radius: 10px;
+    font-size: 17px;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .brand-title {
+    font-size: 13px;
+  }
+
+  .connection-pill {
+    max-width: 160px;
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+
+  .icon-button {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+  }
+
+  .connect-view {
+    padding: 14px;
+    place-items: start center;
+  }
+
+  .connect-layout {
+    gap: 12px;
+  }
+
+  .hero-panel {
+    display: none;
+  }
+
+  .connect-card {
+    min-height: auto;
+    padding: 20px;
+    border-radius: 18px;
+  }
+
+  .card-title {
+    font-size: 19px;
+  }
+
+  .card-subtitle {
+    margin-left: 48px;
+  }
+
+  .form-grid {
+    grid-template-columns: minmax(0,1fr) 95px;
+  }
+
+  .info-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .terminal-header {
+    min-height: 48px;
+    padding: 5px 7px;
+  }
+
+  .session-avatar {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+  }
+
+  .session-title {
+    max-width: 220px;
+  }
+
+  .session-detail {
+    max-width: 220px;
+  }
+
+  .terminal-stat {
+    display: none;
+  }
+
+  .terminal-actions .hide-mobile {
+    display: none;
+  }
+
+  .terminal-toolbar {
+    min-height: 47px;
+    padding: 5px 7px;
+  }
+
+  .toolbar-meta {
+    width: 100%;
+    order: 10;
+    justify-content: flex-start;
+  }
+
+  .mobile-keybar {
+    display: flex;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .setting.full {
+    grid-column: auto;
+  }
+
+  .toast-stack {
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    width: calc(100vw - 20px);
+  }
+}
+
+@media (max-width: 430px) {
+  .connect-card {
+    padding: 17px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr 84px;
+  }
+
+  .connect-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-row .button {
+    flex: 1;
+  }
+
+  .terminal-actions .compact-mobile-hide {
+    display: none;
+  }
+
+  .terminal-toolbar .button {
+    min-width: 34px;
+    padding: 7px 8px;
+  }
+}
+
+@media (hover: none) {
+  .button:hover,
+  .icon-button:hover {
+    transform: none;
+  }
+}
+
+/* touch devices of any width (phones in landscape, tablets) get the key bar; 16px inputs stop iOS from zooming the page */
+@media (pointer: coarse) {
+  .mobile-keybar {
+    display: flex;
+  }
+
+  .fullscreen-mode .mobile-keybar {
+    display: none !important;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">⌁</div>
+    <div class="brand-copy">
+      <h1 class="brand-title" id="brandTitle">Web SSH • SVM+</h1>
+      <p class="brand-subtitle">Secure VPS terminal</p>
+    </div>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="connection-pill" id="headerConnection">
+    <span class="status-dot" id="headerDot"></span>
+    <span id="headerState">Disconnected</span>
+  </div>
+  <button class="icon-button" id="themeButton" type="button" title="Change theme" aria-label="Change theme">◐</button>
+  <button class="icon-button" id="helpButton" type="button" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">?</button>
+</header>
+
+<main class="page">
+<section class="connect-view" id="connectView">
+  <div class="connect-layout">
+    <section class="hero-panel">
+      <div class="hero-badge">⚡ SVM+ WebSSH Pro</div>
+      <h2 class="hero-title">Your VPS.<br><span>Your terminal.</span><br>In the browser.</h2>
+      <p class="hero-description">
+        A responsive SSH workspace designed for SVM+ VPS access, with xterm.js,
+        mobile controls, session recovery, terminal search, themes and safe
+        frontend credential handling.
+      </p>
+      <div class="feature-grid">
+        <article class="feature">
+          <div class="feature-icon">🖥️</div>
+          <div class="feature-title">Full terminal</div>
+          <div class="feature-text">xterm.js PTY with resize support and scrollback.</div>
+        </article>
+        <article class="feature">
+          <div class="feature-icon">📱</div>
+          <div class="feature-title">Mobile ready</div>
+          <div class="feature-text">Touch-friendly controls and SSH shortcut bar.</div>
+        </article>
+        <article class="feature">
+          <div class="feature-icon">🔐</div>
+          <div class="feature-title">Credential aware</div>
+          <div class="feature-text">Passwords stay in memory and are never persisted.</div>
+        </article>
+        <article class="feature">
+          <div class="feature-icon">♻️</div>
+          <div class="feature-title">Recovery</div>
+          <div class="feature-text">Automatic polling recovery and optional reconnect.</div>
+        </article>
+      </div>
+      <div class="info-strip">
+        <div class="info-card">
+          <div class="info-card-value">Paramiko</div>
+          <div class="info-card-label">SVM+ backend</div>
+        </div>
+        <div class="info-card">
+          <div class="info-card-value">xterm.js</div>
+          <div class="info-card-label">Terminal engine</div>
+        </div>
+        <div class="info-card">
+          <div class="info-card-value">Mobile-first</div>
+          <div class="info-card-label">Responsive UI</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="connect-card">
+      <div class="card-heading">
+        <div class="card-heading-icon">🖧</div>
+        <h2 class="card-title">Connect to VPS</h2>
+      </div>
+      <p class="card-subtitle">Use the SSH credentials generated by SVM+.</p>
+
+      <div class="secure-banner" id="tokenBanner">
+        🔐 <strong>Secure connection link detected.</strong>
+        <span id="tokenStatus">Verifying token…</span>
+      </div>
+
+      <form id="connectForm" autocomplete="off" novalidate>
+        <div class="form-grid">
+          <div class="field">
+            <label class="field-label" for="host">
+              <span>Host / IP</span>
+              <span class="field-hint">IPv4 / hostname</span>
+            </label>
+            <input
+              class="input"
+              id="host"
+              name="host"
+              type="text"
+              inputmode="url"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="1.2.3.4"
+              required
+            >
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="port">
+              <span>Port</span>
+              <span class="field-hint">1–65535</span>
+            </label>
+            <input
+              class="input"
+              id="port"
+              name="port"
+              type="number"
+              min="1"
+              max="65535"
+              inputmode="numeric"
+              value="22"
+              required
+            >
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="username">
+            <span>Username</span>
+            <span class="field-hint">SSH account</span>
+          </label>
+          <input
+            class="input"
+            id="username"
+            name="username"
+            type="text"
+            value="root"
+            autocapitalize="off"
+            autocomplete="username"
+            spellcheck="false"
+            placeholder="root"
+            required
+          >
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="password">
+            <span>Password</span>
+            <span class="field-hint">never saved</span>
+          </label>
+          <div class="input-wrap">
+            <input
+              class="input password-input"
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              spellcheck="false"
+              placeholder="VPS password"
+              required
+            >
+            <button
+              class="password-toggle"
+              id="passwordToggle"
+              type="button"
+              aria-label="Show password"
+              title="Show password"
+            >👁</button>
+          </div>
+        </div>
+
+        <div class="quick-row">
+          <button class="button small" type="button" data-port="22">SSH 22</button>
+          <button class="button small" type="button" data-port="2222">SSH 2222</button>
+          <button class="button small" type="button" id="healthButton">Check server</button>
+          <button class="button small" type="button" id="clearUiButton">Clear UI data</button>
+        </div>
+
+        <div class="connect-actions">
+          <button class="button primary" id="connectButton" type="submit">
+            ⚡ Connect to VPS
+          </button>
+          <button class="button" id="resetButton" type="button">
+            Reset
+          </button>
+        </div>
+
+        <div class="error-box" id="connectError" role="alert"></div>
+      </form>
+
+      <div class="security-note">
+        🔒 <strong>Security:</strong>
+        credentials are transmitted only to this page's SVM+ backend.
+        They are not stored in localStorage, sessionStorage, URLs or cookies by this UI.
+        Use HTTPS when exposing WebSSH outside a trusted private network.
+      </div>
+    </section>
+  </div>
+</section>
+
+<section class="terminal-view" id="terminalView">
+  <header class="terminal-header">
+    <div class="session-summary">
+      <div class="session-avatar">⌁</div>
+      <div class="session-copy">
+        <div class="session-title" id="sessionTitle">Terminal</div>
+        <div class="session-detail" id="sessionDetail">Disconnected</div>
+      </div>
+    </div>
+
+    <div class="terminal-header-spacer"></div>
+
+    <div class="terminal-stat" title="Round-trip request time">
+      <span>RTT</span>
+      <strong id="rttValue">—</strong>
+    </div>
+
+    <div class="terminal-stat" title="Transport">
+      <span>Mode</span>
+      <strong id="transportValue">Polling</strong>
+    </div>
+
+    <div class="terminal-actions">
+      <button class="button small compact-mobile-hide" id="searchButton" type="button">⌕</button>
+      <button class="button small compact-mobile-hide" id="settingsButton" type="button">⚙</button>
+      <button class="button small hide-mobile" id="fullscreenButton" type="button">⛶</button>
+      <a class="button small" href="/admin" title="Open SVM+ Admin Console">⚙ Admin</a>
+      <button class="button small" id="reconnectButton" type="button">↻</button>
+      <button class="button small danger" id="disconnectButton" type="button">Disconnect</button>
+    </div>
+  </header>
+
+  <div class="terminal-stage" id="terminalStage">
+    <div class="terminal-container" id="terminalContainer"></div>
+    <pre class="basic-terminal" id="basicTerminal"></pre>
+
+    <div class="search-bar" id="searchBar">
+      <input
+        class="search-input"
+        id="searchInput"
+        type="search"
+        placeholder="Search terminal…"
+        autocomplete="off"
+      >
+      <span class="search-count" id="searchCount">0</span>
+      <button class="button small" id="searchPrev" type="button">↑</button>
+      <button class="button small" id="searchNext" type="button">↓</button>
+      <button class="button small" id="searchClose" type="button">×</button>
+    </div>
+
+    <div class="tap-hint" id="tapHint">Tap the terminal to type ⌨</div>
+
+    <div class="loading-overlay" id="terminalLoading">
+      <div class="loading-card">
+        <span class="spinner"></span>
+        <span id="loadingText">Connecting…</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mobile-keybar" id="mobileKeybar" aria-label="SSH keyboard shortcuts"></div>
+
+  <footer class="terminal-toolbar">
+    <div class="toolbar-group">
+      <button class="button small" id="copyButton" type="button">Copy</button>
+      <button class="button small" id="pasteButton" type="button">Paste</button>
+      <button class="button small" id="clearButton" type="button">Clear</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button class="button small" id="fontDownButton" type="button">A−</button>
+      <button class="button small" id="fontUpButton" type="button">A+</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button class="button small" id="interruptButton" type="button">^C</button>
+      <button class="button small" id="eofButton" type="button">^D</button>
+    </div>
+
+    <div class="toolbar-spacer"></div>
+
+    <div class="toolbar-meta">
+      <span class="meta-chip" id="sessionTimer">00:00</span>
+      <span class="meta-chip" id="sizeValue">— × —</span>
+      <span class="meta-chip" id="sessionState">Disconnected</span>
+    </div>
+  </footer>
+</section>
+</main>
+</div>
+
+<div class="modal-backdrop" id="settingsModal" aria-hidden="true">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <header class="modal-header">
+      <h2 class="modal-title" id="settingsTitle">Terminal settings</h2>
+      <div class="modal-header-spacer"></div>
+      <button class="icon-button" id="settingsClose" type="button" aria-label="Close settings">×</button>
+    </header>
+
+    <div class="modal-body">
+      <div class="settings-grid">
+        <div class="setting">
+          <label class="setting-label" for="themeSelect">Theme</label>
+          <select class="select" id="themeSelect">
+            <option value="">SVM+ Dark</option>
+            <option value="light">Light</option>
+            <option value="solarized">Solarized</option>
+          </select>
+          <div class="setting-description">Applies to the application and terminal.</div>
+        </div>
+
+        <div class="setting">
+          <label class="setting-label" for="fontSizeRange">Font size</label>
+          <input class="range" id="fontSizeRange" type="range" min="10" max="26" step="1" value="14">
+          <div class="setting-description" id="fontSizeLabel">14px</div>
+        </div>
+
+        <div class="setting">
+          <label class="setting-label" for="cursorStyleSelect">Cursor style</label>
+          <select class="select" id="cursorStyleSelect">
+            <option value="block">Block</option>
+            <option value="underline">Underline</option>
+            <option value="bar">Bar</option>
+          </select>
+          <div class="setting-description">Controls the xterm cursor.</div>
+        </div>
+
+        <div class="setting">
+          <label class="setting-label" for="scrollbackRange">Scrollback</label>
+          <input class="range" id="scrollbackRange" type="range" min="1000" max="20000" step="1000" value="5000">
+          <div class="setting-description" id="scrollbackLabel">5000 lines</div>
+        </div>
+
+        <div class="setting">
+          <label class="setting-label">Connection recovery</label>
+          <div class="check-row">
+            <input id="autoReconnectCheck" type="checkbox" checked>
+            <label for="autoReconnectCheck">Automatically reconnect after temporary failures</label>
+          </div>
+          <div class="setting-description">The password remains memory-only while this page is open.</div>
+        </div>
+
+        <div class="setting">
+          <label class="setting-label">Terminal behavior</label>
+          <div class="check-row">
+            <input id="bellCheck" type="checkbox" checked>
+            <label for="bellCheck">Enable terminal bell</label>
+          </div>
+          <div class="check-row">
+            <input id="blinkCheck" type="checkbox" checked>
+            <label for="blinkCheck">Blink cursor</label>
+          </div>
+        </div>
+
+        <div class="setting full">
+          <label class="setting-label">Transport</label>
+          <div class="check-row">
+            <input id="websocketCheck" type="checkbox">
+            <label for="websocketCheck">Prefer optional WebSocket transport when a configured WS URL is available</label>
+          </div>
+          <div class="setting-description">
+            The current SVM+ backend exposes HTTP polling endpoints. WebSocket mode is only used when
+            a real WebSocket URL is supplied by deployment configuration; this UI never invents a WS endpoint.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="modal-footer">
+      <button class="button" id="settingsReset" type="button">Reset settings</button>
+      <button class="button primary" id="settingsSave" type="button">Save</button>
+    </footer>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="confirmModal" aria-hidden="true">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <header class="modal-header">
+      <h2 class="modal-title" id="confirmTitle">Confirm action</h2>
+      <div class="modal-header-spacer"></div>
+      <button class="icon-button" id="confirmClose" type="button">×</button>
+    </header>
+    <div class="modal-body">
+      <p class="confirm-text" id="confirmText">Are you sure?</p>
+    </div>
+    <footer class="modal-footer">
+      <button class="button" id="confirmCancel" type="button">Cancel</button>
+      <button class="button danger" id="confirmAccept" type="button">Confirm</button>
+    </footer>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="helpModal" aria-hidden="true">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <header class="modal-header">
+      <h2 class="modal-title" id="helpTitle">WebSSH shortcuts</h2>
+      <div class="modal-header-spacer"></div>
+      <button class="icon-button" id="helpClose" type="button">×</button>
+    </header>
+    <div class="modal-body">
+      <div class="setting">
+        <div class="setting-title">Desktop</div>
+        <div class="setting-description">Ctrl/Cmd + F opens terminal search. Ctrl/Cmd + Shift + F toggles fullscreen.</div>
+        <div class="setting-description">Ctrl + C and Ctrl + D are sent directly to the remote PTY.</div>
+        <div class="setting-description">Escape, arrows, Tab and common shell keys are available in the mobile key bar.</div>
+      </div>
+      <div class="setting" style="margin-top:10px;">
+        <div class="setting-title">Security</div>
+        <div class="setting-description">Never put a real password in a URL. Use HTTPS and a protected backend when exposing WebSSH publicly.</div>
+      </div>
+    </div>
+    <footer class="modal-footer">
+      <button class="button primary" id="helpDone" type="button">Done</button>
+    </footer>
+  </section>
+</div>
+
+<div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/xterm.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.3.0/addons/xterm-addon-fit.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-search@0.15.0/lib/addon-search.js"></script>
+<script>
+
+/* ==========================================================================
+   SVM+ WEBSSH PRO APPLICATION
+   ========================================================================== */
+
+(function () {
+  "use strict";
+
+  const VERSION = "2.0.0";
+  const API = Object.freeze({
+    connect: "/api/ssh/connect",
+    read: "/api/ssh/read",
+    write: "/api/ssh/write",
+    resize: "/api/ssh/resize",
+    disconnect: "/api/ssh/disconnect",
+    health: "/api/health",
+    tokenConnect: "/api/ssh/token-connect"
+  });
+
+  const STORAGE = Object.freeze({
+    theme: "svm.webssh.theme",
+    fontSize: "svm.webssh.fontSize",
+    scrollback: "svm.webssh.scrollback",
+    cursor: "svm.webssh.cursor",
+    autoReconnect: "svm.webssh.autoReconnect",
+    bell: "svm.webssh.bell",
+    blink: "svm.webssh.blink",
+    preferWebSocket: "svm.webssh.preferWebSocket"
+  });
+
+  const DEFAULTS = Object.freeze({
+    theme: "",
+    fontSize: 14,
+    scrollback: 5000,
+    cursor: "block",
+    autoReconnect: true,
+    bell: true,
+    blink: true,
+    preferWebSocket: false
+  });
+
+  const $ = (id) => document.getElementById(id);
+
+  const dom = {
+    app: $("app"),
+    pageTitle: $("page-title"),
+    brandTitle: $("brandTitle"),
+    headerDot: $("headerDot"),
+    headerState: $("headerState"),
+    themeButton: $("themeButton"),
+    helpButton: $("helpButton"),
+    connectView: $("connectView"),
+    terminalView: $("terminalView"),
+    connectForm: $("connectForm"),
+    host: $("host"),
+    port: $("port"),
+    username: $("username"),
+    password: $("password"),
+    passwordToggle: $("passwordToggle"),
+    connectButton: $("connectButton"),
+    resetButton: $("resetButton"),
+    healthButton: $("healthButton"),
+    clearUiButton: $("clearUiButton"),
+    connectError: $("connectError"),
+    tokenBanner: $("tokenBanner"),
+    tokenStatus: $("tokenStatus"),
+    sessionTitle: $("sessionTitle"),
+    sessionDetail: $("sessionDetail"),
+    rttValue: $("rttValue"),
+    transportValue: $("transportValue"),
+    terminalStage: $("terminalStage"),
+    terminalContainer: $("terminalContainer"),
+    basicTerminal: $("basicTerminal"),
+    terminalLoading: $("terminalLoading"),
+    loadingText: $("loadingText"),
+    mobileKeybar: $("mobileKeybar"),
+    searchButton: $("searchButton"),
+    settingsButton: $("settingsButton"),
+    fullscreenButton: $("fullscreenButton"),
+    reconnectButton: $("reconnectButton"),
+    disconnectButton: $("disconnectButton"),
+    copyButton: $("copyButton"),
+    pasteButton: $("pasteButton"),
+    clearButton: $("clearButton"),
+    fontDownButton: $("fontDownButton"),
+    fontUpButton: $("fontUpButton"),
+    interruptButton: $("interruptButton"),
+    eofButton: $("eofButton"),
+    sessionTimer: $("sessionTimer"),
+    sizeValue: $("sizeValue"),
+    sessionState: $("sessionState"),
+    searchBar: $("searchBar"),
+    searchInput: $("searchInput"),
+    searchCount: $("searchCount"),
+    searchPrev: $("searchPrev"),
+    searchNext: $("searchNext"),
+    searchClose: $("searchClose"),
+    settingsModal: $("settingsModal"),
+    settingsClose: $("settingsClose"),
+    settingsReset: $("settingsReset"),
+    settingsSave: $("settingsSave"),
+    themeSelect: $("themeSelect"),
+    fontSizeRange: $("fontSizeRange"),
+    fontSizeLabel: $("fontSizeLabel"),
+    cursorStyleSelect: $("cursorStyleSelect"),
+    scrollbackRange: $("scrollbackRange"),
+    scrollbackLabel: $("scrollbackLabel"),
+    autoReconnectCheck: $("autoReconnectCheck"),
+    bellCheck: $("bellCheck"),
+    blinkCheck: $("blinkCheck"),
+    websocketCheck: $("websocketCheck"),
+    confirmModal: $("confirmModal"),
+    confirmClose: $("confirmClose"),
+    confirmCancel: $("confirmCancel"),
+    confirmAccept: $("confirmAccept"),
+    confirmText: $("confirmText"),
+    helpModal: $("helpModal"),
+    helpClose: $("helpClose"),
+    helpDone: $("helpDone"),
+    toastStack: $("toastStack")
+  };
+
+  const state = {
+    version: VERSION,
+    sessionId: null,
+    lastIndex: 0,
+    host: "",
+    port: 22,
+    username: "",
+    password: "",
+    term: null,
+    fit: null,
+    search: null,
+    ws: null,
+    transport: "polling",
+    pollTimer: null,
+    pollActive: false,
+    pollBackoff: 0,
+    reconnectTimer: null,
+    reconnectAttempts: 0,
+    reconnecting: false,
+    intentionalDisconnect: false,
+    connectInFlight: false,
+    writeQueue: "",
+    writeInFlight: false,
+    writeTimer: null,
+    sessionStartedAt: 0,
+    sessionTimer: null,
+    rtt: null,
+    lastRttAt: 0,
+    terminalReady: false,
+    basicMode: false,
+    ctrlModifier: false,
+    commandBuffer: "",
+    outputMirror: "",
+    outputMirrorLimit: 500000,
+    fullscreen: false,
+    pendingConfirm: null,
+    confirmTimer: null,
+    currentSearch: "",
+    searchDirection: "next",
+    resizeTimer: null,
+    healthTimer: null,
+    lastHealth: null,
+    settings: loadSettings(),
+    token: ""
+  };
+
+  function safeGet(key, fallback) {
+    try {
+      const value = localStorage.getItem(key);
+      return value === null ? fallback : value;
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  function safeSet(key, value) {
+    try {
+      localStorage.setItem(key, String(value));
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function safeRemove(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      return;
+    }
+  }
+
+  function loadSettings() {
+    return {
+      theme: safeGet(STORAGE.theme, DEFAULTS.theme),
+      fontSize: clampInt(safeGet(STORAGE.fontSize, DEFAULTS.fontSize), 10, 26),
+      scrollback: clampInt(safeGet(STORAGE.scrollback, DEFAULTS.scrollback), 1000, 20000),
+      cursor: safeGet(STORAGE.cursor, DEFAULTS.cursor),
+      autoReconnect: safeGet(STORAGE.autoReconnect, DEFAULTS.autoReconnect) !== "false",
+      bell: safeGet(STORAGE.bell, DEFAULTS.bell) !== "false",
+      blink: safeGet(STORAGE.blink, DEFAULTS.blink) !== "false",
+      preferWebSocket: safeGet(STORAGE.preferWebSocket, DEFAULTS.preferWebSocket) === "true"
+    };
+  }
+
+  function saveSettings(settings) {
+    safeSet(STORAGE.theme, settings.theme);
+    safeSet(STORAGE.fontSize, settings.fontSize);
+    safeSet(STORAGE.scrollback, settings.scrollback);
+    safeSet(STORAGE.cursor, settings.cursor);
+    safeSet(STORAGE.autoReconnect, settings.autoReconnect);
+    safeSet(STORAGE.bell, settings.bell);
+    safeSet(STORAGE.blink, settings.blink);
+    safeSet(STORAGE.preferWebSocket, settings.preferWebSocket);
+  }
+
+  function clampInt(value, min, max) {
+    const number = Number.parseInt(value, 10);
+    if (!Number.isFinite(number)) {
+      return min;
+    }
+    return Math.min(max, Math.max(min, number));
+  }
+
+  function setTheme(theme) {
+    const valid = ["", "light", "solarized"];
+    const next = valid.includes(theme) ? theme : "";
+    document.documentElement.dataset.theme = next;
+    state.settings.theme = next;
+    if (dom.themeSelect) {
+      dom.themeSelect.value = next;
+    }
+    updateTerminalTheme();
+  }
+
+  function cycleTheme() {
+    const themes = ["", "light", "solarized"];
+    const current = themes.indexOf(state.settings.theme);
+    const next = themes[(current + 1) % themes.length];
+    setTheme(next);
+    saveSettings(state.settings);
+    toast("Theme: " + (next || "SVM+ Dark"), "success");
+  }
+
+  function terminalTheme() {
+    const styles = getComputedStyle(document.documentElement);
+    return {
+      background: styles.getPropertyValue("--terminal").trim() || "#05070c",
+      foreground: styles.getPropertyValue("--terminal-text").trim() || "#d9e1f2",
+      cursor: styles.getPropertyValue("--terminal-cursor").trim() || "#9b8cff",
+      cursorAccent: styles.getPropertyValue("--terminal").trim() || "#05070c",
+      selectionBackground: styles.getPropertyValue("--selection").trim() || "rgba(115,92,255,.38)",
+      black: "#000000",
+      red: "#ff5e72",
+      green: "#32d583",
+      yellow: "#f4bd50",
+      blue: "#6f86ff",
+      magenta: "#b88cff",
+      cyan: "#24d6d2",
+      white: "#d9e1f2",
+      brightBlack: "#536078",
+      brightRed: "#ff8090",
+      brightGreen: "#64e3a0",
+      brightYellow: "#ffd579",
+      brightBlue: "#9aabff",
+      brightMagenta: "#d0aaff",
+      brightCyan: "#69ece8",
+      brightWhite: "#ffffff"
+    };
+  }
+
+  function updateTerminalTheme() {
+    if (!state.term) {
+      return;
+    }
+    state.term.options.theme = terminalTheme();
+    state.term.options.fontSize = state.settings.fontSize;
+    state.term.options.cursorStyle = state.settings.cursor;
+    state.term.options.cursorBlink = state.settings.blink;
+    state.term.options.scrollback = state.settings.scrollback;
+  }
+
+  function setConnectionState(label, kind) {
+    dom.headerState.textContent = label;
+    dom.sessionState.textContent = label;
+    dom.headerDot.className = "status-dot";
+    if (kind) {
+      dom.headerDot.classList.add(kind);
+    }
+  }
+
+  function setLoading(visible, text) {
+    dom.terminalLoading.classList.toggle("visible", Boolean(visible));
+    if (text) {
+      dom.loadingText.textContent = text;
+    }
+  }
+
+  function showConnectError(message) {
+    dom.connectError.textContent = message || "";
+    dom.connectError.classList.toggle("visible", Boolean(message));
+  }
+
+  function toast(message, type) {
+    const item = document.createElement("div");
+    const icon = document.createElement("span");
+    const text = document.createElement("span");
+    item.className = "toast " + (type || "");
+    icon.className = "toast-icon";
+    text.className = "toast-message";
+    icon.textContent = type === "error" ? "⚠" : type === "success" ? "✓" : "ⓘ";
+    text.textContent = String(message);
+    item.appendChild(icon);
+    item.appendChild(text);
+    dom.toastStack.appendChild(item);
+    window.setTimeout(() => {
+      item.style.opacity = "0";
+      item.style.transform = "translateY(6px)";
+      window.setTimeout(() => item.remove(), 180);
+    }, 3200);
+  }
+
+  function formatDuration(seconds) {
+    const total = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    if (hours > 0) {
+      return (
+        String(hours).padStart(2, "0") +
+        ":" +
+        String(minutes).padStart(2, "0") +
+        ":" +
+        String(secs).padStart(2, "0")
+      );
+    }
+    return String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
+  }
+
+  function normalizeHost(value) {
+    return String(value || "")
+      .trim()
+      .replace(/^\[|\]$/g, "");
+  }
+
+  function validateHost(host) {
+    if (!host) {
+      return "Host / IP is required.";
+    }
+    if (host.length > 253) {
+      return "Host name is too long.";
+    }
+    if (/\s/.test(host)) {
+      return "Host cannot contain spaces.";
+    }
+    if (/^[^a-zA-Z0-9.[\]:_-]/.test(host)) {
+      return "Host contains an invalid character.";
+    }
+    return "";
+  }
+
+  function validatePort(value) {
+    const port = Number.parseInt(value, 10);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      return "Port must be between 1 and 65535.";
+    }
+    return "";
+  }
+
+  function validateUsername(value) {
+    if (!value) {
+      return "Username is required.";
+    }
+    if (value.length > 128) {
+      return "Username is too long.";
+    }
+    if (/[\r\n]/.test(value)) {
+      return "Username contains an invalid newline.";
+    }
+    return "";
+  }
+
+  function validatePassword(value) {
+    if (!value) {
+      return "Password is required.";
+    }
+    if (value.length > 4096) {
+      return "Password is unexpectedly long.";
+    }
+    return "";
+  }
+
+  function collectCredentials() {
+    const host = normalizeHost(dom.host.value);
+    const port = Number.parseInt(dom.port.value, 10);
+    const username = dom.username.value.trim();
+    const password = dom.password.value;
+    const hostError = validateHost(host);
+    const portError = validatePort(port);
+    const userError = validateUsername(username);
+    const passwordError = validatePassword(password);
+
+    if (hostError) {
+      return { error: hostError };
+    }
+    if (portError) {
+      return { error: portError };
+    }
+    if (userError) {
+      return { error: userError };
+    }
+    if (passwordError) {
+      return { error: passwordError };
+    }
+
+    return {
+      host,
+      port,
+      username,
+      password
+    };
+  }
+
+  function rememberSessionTarget(credentials) {
+    state.host = credentials.host;
+    state.port = credentials.port;
+    state.username = credentials.username;
+  }
+
+  function forgetPassword() {
+    state.password = "";
+    dom.password.value = "";
+  }
+
+  function endpointPath(path) {
+    return path;
+  }
+
+  async function apiRequest(path, body, options) {
+    const opts = options || {};
+    const controller = new AbortController();
+    const timeout = window.setTimeout(
+      () => controller.abort(),
+      Number.isFinite(opts.timeout) ? opts.timeout : 20000
+    );
+
+    const request = {
+      method: opts.method || "POST",
+      credentials: "same-origin",
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json"
+      }
+    };
+
+    if (request.method !== "GET") {
+      request.headers["Content-Type"] = "application/json";
+      request.body = JSON.stringify(body || {});
+    }
+
+    try {
+      const response = await fetch(endpointPath(path), request);
+      const text = await response.text();
+      let data = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (error) {
+          data = { raw: text };
+        }
+      }
+      data.__status = response.status;
+      data.__ok = response.ok;
+      return data;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  function humanApiError(response, fallback) {
+    if (!response) {
+      return fallback || "Unknown server error.";
+    }
+    if (response.__status === 401) {
+      return response.error || "Authentication failed or the SSH session is no longer valid.";
+    }
+    if (response.__status === 403) {
+      return response.error || "The server rejected this request.";
+    }
+    if (response.__status === 404) {
+      return response.error || "The requested WebSSH endpoint is not available.";
+    }
+    if (response.__status === 429) {
+      return response.error || "Too many requests. Please wait before retrying.";
+    }
+    if (response.__status >= 500) {
+      if (!response.error && response.raw) {
+        return "WebSSH server returned an error page (HTTP " + response.__status + "). Make sure the SVM bot is running and port " + (window.location.port || "80") + " is open.";
+      }
+      return response.error || "The WebSSH server reported an internal error.";
+    }
+    return response.error || response.message || fallback || "Request failed.";
+  }
+
+  function showConnectView() {
+    dom.terminalView.classList.remove("visible");
+    dom.connectView.classList.remove("hidden");
+  }
+
+  function showTerminalView() {
+    dom.connectView.classList.add("hidden");
+    dom.terminalView.classList.add("visible");
+  }
+
+  function initializeTerminal() {
+    if (state.terminalReady) {
+      return;
+    }
+
+    if (typeof window.Terminal === "undefined") {
+      initializeBasicTerminal();
+      return;
+    }
+
+    const terminalOptions = {
+      cursorBlink: state.settings.blink,
+      cursorStyle: state.settings.cursor,
+      fontSize: state.settings.fontSize,
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+      scrollback: state.settings.scrollback,
+      convertEol: false,
+      allowProposedApi: false,
+      theme: terminalTheme(),
+      bellStyle: state.settings.bell ? "sound" : "none"
+    };
+
+    state.term = new window.Terminal(terminalOptions);
+
+    if (window.FitAddon && window.FitAddon.FitAddon) {
+      state.fit = new window.FitAddon.FitAddon();
+      state.term.loadAddon(state.fit);
+    }
+
+    if (window.SearchAddon && window.SearchAddon.SearchAddon) {
+      state.search = new window.SearchAddon.SearchAddon();
+      state.term.loadAddon(state.search);
+    }
+
+    state.term.open(dom.terminalContainer);
+    setupMobileTerminal();
+
+    if (state.fit) {
+      safeFitTerminal();
+    }
+
+    state.term.onData((data) => {
+      handleTerminalInput(data);
+    });
+
+    state.term.onResize((size) => {
+      updateTerminalSize(size.cols, size.rows);
+    });
+
+    state.term.onSelectionChange(() => {
+      updateCopyButton();
+    });
+
+    state.term.onBell(() => {
+      if (state.settings.bell) {
+        flashTerminal();
+      }
+    });
+
+    state.terminalReady = true;
+    state.basicMode = false;
+    updateTerminalTheme();
+    updateCopyButton();
+  }
+
+  function initializeBasicTerminal() {
+    state.basicMode = true;
+    state.terminalReady = true;
+    dom.terminalContainer.style.display = "none";
+    dom.basicTerminal.style.display = "block";
+    state.writeTerminal = (text) => {
+      dom.basicTerminal.textContent += String(text);
+      if (dom.basicTerminal.textContent.length > state.outputMirrorLimit) {
+        dom.basicTerminal.textContent = dom.basicTerminal.textContent.slice(-state.outputMirrorLimit);
+      }
+      dom.basicTerminal.scrollTop = dom.basicTerminal.scrollHeight;
+    };
+    state.clearTerminal = () => {
+      dom.basicTerminal.textContent = "";
+    };
+    state.getSelection = () => {
+      const selection = window.getSelection();
+      return selection ? String(selection.toString()) : "";
+    };
+  }
+
+  function safeFitTerminal() {
+    if (!state.fit) {
+      return;
+    }
+    try {
+      state.fit.fit();
+    } catch (error) {
+      return;
+    }
+  }
+
+  function currentTerminalSize() {
+    if (state.term) {
+      return {
+        cols: state.term.cols || 120,
+        rows: state.term.rows || 30
+      };
+    }
+    return {
+      cols: 120,
+      rows: 30
+    };
+  }
+
+  function updateTerminalSize(cols, rows) {
+    dom.sizeValue.textContent = String(cols) + " × " + String(rows);
+
+    if (!state.sessionId) {
+      return;
+    }
+
+    clearTimeout(state.resizeTimer);
+
+    state.resizeTimer = window.setTimeout(() => {
+      sendResize(cols, rows);
+    }, 80);
+  }
+
+  async function sendResize(cols, rows) {
+    if (!state.sessionId) {
+      return;
+    }
+
+    const safeCols = clampInt(cols, 10, 500);
+    const safeRows = clampInt(rows, 5, 300);
+
+    try {
+      await apiRequest(API.resize, {
+        session_id: state.sessionId,
+        cols: safeCols,
+        rows: safeRows
+      }, {
+        timeout: 6000
+      });
+    } catch (error) {
+      return;
+    }
+  }
+
+  function writeTerminal(data) {
+    if (!data) {
+      return;
+    }
+
+    const text = String(data);
+    mirrorOutput(text);
+
+    if (state.term) {
+      state.term.write(text);
+      return;
+    }
+
+    if (state.writeTerminal) {
+      state.writeTerminal(text);
+    } else {
+      dom.basicTerminal.textContent += text;
+      dom.basicTerminal.scrollTop = dom.basicTerminal.scrollHeight;
+    }
+  }
+
+  function mirrorOutput(data) {
+    state.outputMirror += String(data);
+    if (state.outputMirror.length > state.outputMirrorLimit) {
+      state.outputMirror = state.outputMirror.slice(-state.outputMirrorLimit);
+    }
+  }
+
+  function clearTerminal() {
+    if (state.term) {
+      state.term.clear();
+      return;
+    }
+
+    dom.basicTerminal.textContent = "";
+    state.outputMirror = "";
+  }
+
+  function selectedTerminalText() {
+    if (state.term && typeof state.term.getSelection === "function") {
+      return state.term.getSelection();
+    }
+
+    if (state.getSelection) {
+      return state.getSelection();
+    }
+
+    const selection = window.getSelection();
+    return selection ? String(selection.toString()) : "";
+  }
+
+  function updateCopyButton() {
+    const selected = selectedTerminalText();
+    dom.copyButton.disabled = !selected;
+  }
+
+  async function copySelection() {
+    const selected = selectedTerminalText();
+
+    if (!selected) {
+      toast("Select terminal text first.");
+      return;
+    }
+
+    if (!navigator.clipboard || !navigator.clipboard.writeText) {
+      toast("Clipboard API is unavailable in this browser.", "error");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(selected);
+      toast("Copied to clipboard.", "success");
+    } catch (error) {
+      toast("Clipboard permission was blocked.", "error");
+    }
+  }
+
+  async function pasteClipboard() {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      toast("Clipboard read is unavailable. Paste with your browser menu.");
+      return;
+    }
+
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        queueTerminalInput(text);
+        focusTerminal();
+      }
+    } catch (error) {
+      toast("Clipboard permission was blocked.", "error");
+    }
+  }
+
+  function terminalTextarea() {
+    return state.term && state.term.textarea ? state.term.textarea : null;
+  }
+
+  function focusTerminal() {
+    if (!state.term) {
+      return;
+    }
+
+    const area = terminalTextarea();
+    if (area) {
+      try {
+        area.focus({ preventScroll: true });
+      } catch (error) {
+        area.focus();
+      }
+    } else {
+      state.term.focus();
+    }
+  }
+
+  function toggleKeyboard() {
+    const area = terminalTextarea();
+    if (area && document.activeElement === area) {
+      area.blur();
+    } else {
+      focusTerminal();
+    }
+  }
+
+  function isTouchDevice() {
+    return window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
+  }
+
+  function showTapHint() {
+    if (!isTouchDevice() || state.tapHintShown) {
+      return;
+    }
+    state.tapHintShown = true;
+    const hint = document.getElementById("tapHint");
+    if (!hint) {
+      return;
+    }
+    hint.classList.add("show");
+    window.setTimeout(() => hint.classList.remove("show"), 4500);
+  }
+
+  /* Tap the terminal -> keyboard opens. A real tap (no scroll, no text selection) inside the user gesture is what iOS/Android require. */
+  function setupMobileTerminal() {
+    const area = terminalTextarea();
+
+    if (area) {
+      area.setAttribute("autocapitalize", "off");
+      area.setAttribute("autocorrect", "off");
+      area.setAttribute("autocomplete", "off");
+      area.setAttribute("spellcheck", "false");
+      area.setAttribute("enterkeyhint", "send");
+      area.setAttribute("inputmode", "text");
+      area.setAttribute("data-gramm", "false");
+    }
+
+    if (state.mobileTerminalReady) {
+      return;
+    }
+    state.mobileTerminalReady = true;
+
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+
+    dom.terminalStage.addEventListener("touchstart", (event) => {
+      const t = event.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      moved = false;
+    }, { passive: true });
+
+    dom.terminalStage.addEventListener("touchmove", (event) => {
+      const t = event.touches[0];
+      if (Math.abs(t.clientX - startX) > 10 || Math.abs(t.clientY - startY) > 10) {
+        moved = true;
+      }
+    }, { passive: true });
+
+    dom.terminalStage.addEventListener("touchend", (event) => {
+      if (moved || !state.sessionId) {
+        return;
+      }
+      if (event.target.closest && event.target.closest(".search-bar, button, input")) {
+        return;
+      }
+      const selection = window.getSelection ? String(window.getSelection()) : "";
+      if (selection) {
+        return;
+      }
+      focusTerminal();
+    }, { passive: true });
+
+    dom.terminalStage.addEventListener("click", (event) => {
+      if (event.target.closest && event.target.closest(".search-bar, button, input")) {
+        return;
+      }
+      if (!String(window.getSelection ? window.getSelection() : "")) {
+        focusTerminal();
+      }
+    });
+  }
+
+  /* Keep the layout equal to the VISIBLE area: when the on-screen keyboard opens the terminal shrinks (and re-fits) instead of hiding behind it. */
+  function setupViewportFit() {
+    const vv = window.visualViewport;
+    if (!vv || state.viewportFitReady) {
+      return;
+    }
+    state.viewportFitReady = true;
+
+    const apply = () => {
+      const root = document.documentElement;
+      root.style.setProperty("--vv-h", Math.round(vv.height) + "px");
+      root.style.setProperty("--vv-top", Math.round(vv.offsetTop) + "px");
+      document.body.classList.add("vv-ready");
+      document.body.classList.toggle("kb-open", window.innerHeight - vv.height > 120);
+
+      if (window.scrollY || document.documentElement.scrollTop) {
+        window.scrollTo(0, 0);
+      }
+
+      window.clearTimeout(state.vvTimer);
+      state.vvTimer = window.setTimeout(() => {
+        safeFitTerminal();
+        if (state.term && state.sessionId) {
+          const size = currentTerminalSize();
+          updateTerminalSize(size.cols, size.rows);
+          state.term.scrollToBottom();
+        }
+      }, 90);
+    };
+
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    apply();
+  }
+
+  function flashTerminal() {
+    dom.terminalStage.animate(
+      [
+        { filter: "brightness(1)" },
+        { filter: "brightness(1.18)" },
+        { filter: "brightness(1)" }
+      ],
+      {
+        duration: 150,
+        easing: "ease-out"
+      }
+    );
+  }
+
+  function handleTerminalInput(data) {
+    let payload = String(data);
+
+    if (state.ctrlModifier && payload.length === 1) {
+      const code = payload.toUpperCase().charCodeAt(0);
+      if (code >= 64 && code <= 95) {
+        payload = String.fromCharCode(code & 31);
+      }
+      state.ctrlModifier = false;
+      updateCtrlKey();
+    }
+
+    if (state.altModifier && payload.length === 1) {
+      payload = "\u001b" + payload;
+      state.altModifier = false;
+      document.querySelectorAll(".mobile-key[data-action='alt']").forEach((button) => button.classList.remove("active"));
+    }
+
+    queueTerminalInput(payload);
+  }
+
+  function queueTerminalInput(data) {
+    if (!state.sessionId || !data) {
+      return;
+    }
+
+    state.writeQueue += data;
+
+    if (state.writeTimer) {
+      return;
+    }
+
+    state.writeTimer = window.setTimeout(() => {
+      state.writeTimer = null;
+      flushWriteQueue();
+    }, 0);
+  }
+
+  async function flushWriteQueue() {
+    if (state.writeInFlight) {
+      return;
+    }
+
+    if (!state.sessionId || !state.writeQueue) {
+      return;
+    }
+
+    state.writeInFlight = true;
+    const payload = state.writeQueue;
+    state.writeQueue = "";
+
+    try {
+      if (state.transport === "websocket" && state.ws && state.ws.readyState === WebSocket.OPEN) {
+        state.ws.send(JSON.stringify({
+          type: "input",
+          data: payload
+        }));
+      } else {
+        const response = await apiRequest(API.write, {
+          session_id: state.sessionId,
+          data: payload
+        }, {
+          timeout: 10000
+        });
+
+        if (!response.success) {
+          if (response.__status === 401 || response.__status === 410) {
+            handleRemoteSessionEnd(humanApiError(response, "SSH session ended."));
+          } else {
+            toast(humanApiError(response, "Could not send terminal input."), "error");
+          }
+        }
+      }
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        toast("Write request timed out.", "error");
+      } else {
+        handleTransportFailure(error);
+      }
+    } finally {
+      state.writeInFlight = false;
+      if (state.writeQueue) {
+        window.setTimeout(flushWriteQueue, 0);
+      }
+    }
+  }
+
+  function updateCtrlKey() {
+    document.querySelectorAll(".mobile-key[data-action='ctrl']").forEach((button) => {
+      button.classList.toggle("active", state.ctrlModifier);
+    });
+  }
+
+  function buildMobileKeybar() {
+    dom.mobileKeybar.textContent = "";
+
+    const keys = [
+      { label: "⌨", title: "Show / hide keyboard", action: "keyboard" },
+      { label: "Esc", data: "\u001b" },
+      { label: "Tab", data: "\t" },
+      { label: "Ctrl", action: "ctrl" },
+      { label: "Alt", action: "alt" },
+      { label: "↑", data: "\u001b[A" },
+      { label: "↓", data: "\u001b[B" },
+      { label: "←", data: "\u001b[D" },
+      { label: "→", data: "\u001b[C" },
+      { label: "Home", data: "\u001b[H" },
+      { label: "End", data: "\u001b[F" },
+      { label: "PgUp", data: "\u001b[5~" },
+      { label: "PgDn", data: "\u001b[6~" },
+      { label: "^C", data: "\u0003" },
+      { label: "^D", data: "\u0004" },
+      { label: "^Z", data: "\u001a" },
+      { label: "^L", data: "\u000c" },
+      { label: "^A", data: "\u0001" },
+      { label: "^E", data: "\u0005" },
+      { label: "^R", data: "\u0012" },
+      { label: "Paste", action: "paste" },
+      { label: "|", data: "|" },
+      { label: "/", data: "/" },
+      { label: "-", data: "-" },
+      { label: "~", data: "~" },
+      { label: "_", data: "_" },
+      { label: "$", data: "$" },
+      { label: "\\", data: "\\" },
+      { label: "*", data: "*" },
+      { label: "&", data: "&" },
+      { label: ">", data: ">" },
+      { label: "<", data: "<" },
+      { label: ":", data: ":" },
+      { label: "\"", data: "\"" },
+      { label: "'", data: "'" }
+    ];
+
+    keys.forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "mobile-key";
+      button.textContent = item.label;
+      if (item.title) {
+        button.title = item.title;
+        button.setAttribute("aria-label", item.title);
+      }
+
+      /* Never let a key take focus away from the terminal: that is what closed the keyboard on every key press. */
+      const keepFocus = (event) => {
+        event.preventDefault();
+      };
+      button.addEventListener("mousedown", keepFocus);
+      button.addEventListener("pointerdown", keepFocus);
+      button.addEventListener("touchstart", keepFocus, { passive: false });
+
+      if (item.action === "ctrl") {
+        button.dataset.action = "ctrl";
+        button.addEventListener("click", () => {
+          state.ctrlModifier = !state.ctrlModifier;
+          updateCtrlKey();
+          focusTerminal();
+        });
+      } else if (item.action === "alt") {
+        button.dataset.action = "alt";
+        button.addEventListener("click", () => {
+          state.altModifier = !state.altModifier;
+          button.classList.toggle("active", state.altModifier);
+          focusTerminal();
+        });
+      } else if (item.action === "keyboard") {
+        button.addEventListener("click", toggleKeyboard);
+      } else if (item.action === "paste") {
+        button.addEventListener("click", pasteClipboard);
+      } else {
+        button.addEventListener("click", () => {
+          queueTerminalInput(item.data);
+          focusTerminal();
+        });
+      }
+
+      dom.mobileKeybar.appendChild(button);
+    });
+  }
+
+  function openSession(response, credentials) {
+    if (!response || !response.success) {
+      const message = humanApiError(response, "SSH connection failed.");
+      showConnectError(message);
+      setConnectionState("Disconnected", "error");
+      return false;
+    }
+
+    state.sessionId = response.session_id;
+    state.lastIndex = 0;
+    state.intentionalDisconnect = false;
+    state.reconnecting = false;
+    state.reconnectAttempts = 0;
+    state.pollBackoff = 0;
+    state.sessionStartedAt = Date.now();
+    state.outputMirror = "";
+
+    if (credentials) {
+      rememberSessionTarget(credentials);
+    }
+
+    dom.sessionTitle.textContent =
+      state.username + "@" + state.host;
+
+    dom.sessionDetail.textContent =
+      state.host + ":" + String(state.port) + " • SSH";
+
+    showTerminalView();
+    initializeTerminal();
+    safeFitTerminal();
+
+    const size = currentTerminalSize();
+    updateTerminalSize(size.cols, size.rows);
+    sendResize(size.cols, size.rows);
+
+    setConnectionState("Connected", "connected");
+    dom.transportValue.textContent = "Polling";
+    dom.rttValue.textContent = "—";
+
+    startSessionTimer();
+    startPolling();
+    chooseOptionalWebSocket();
+    focusTerminal();
+    setupViewportFit();
+    showTapHint();
+
+    return true;
+  }
+
+  async function connect(credentialsOverride) {
+    if (state.connectInFlight) {
+      return;
+    }
+
+    showConnectError("");
+
+    const credentials = credentialsOverride || collectCredentials();
+
+    if (credentials.error) {
+      showConnectError(credentials.error);
+      return;
+    }
+
+    if (state.sessionId) {
+      await disconnect(false);
+    }
+
+    state.password = credentials.password;
+    rememberSessionTarget(credentials);
+    state.connectInFlight = true;
+    state.intentionalDisconnect = false;
+
+    dom.connectButton.disabled = true;
+    setConnectionState("Connecting…", "connecting");
+    showConnectError("");
+    setLoading(true, "Opening SSH session…");
+
+    try {
+      const response = await apiRequest(API.connect, {
+        host: credentials.host,
+        port: credentials.port,
+        username: credentials.username,
+        password: credentials.password
+      }, {
+        timeout: 120000
+      });
+
+      if (!openSession(response, credentials)) {
+        state.password = "";
+      }
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        showConnectError("SSH connection timed out (no answer from the VPS). Check the IPv4 address, SSH port and firewall, wait 30 seconds if the VPS just started, then retry.");
+      } else {
+        showConnectError("Cannot reach the SVM+ WebSSH backend.");
+      }
+      setConnectionState("Disconnected", "error");
+    } finally {
+      state.connectInFlight = false;
+      dom.connectButton.disabled = false;
+      setLoading(false);
+    }
+  }
+
+  function startSessionTimer() {
+    stopSessionTimer();
+    updateSessionTimer();
+    state.sessionTimer = window.setInterval(updateSessionTimer, 1000);
+  }
+
+  function stopSessionTimer() {
+    if (state.sessionTimer) {
+      window.clearInterval(state.sessionTimer);
+      state.sessionTimer = null;
+    }
+  }
+
+  function updateSessionTimer() {
+    if (!state.sessionStartedAt) {
+      dom.sessionTimer.textContent = "00:00";
+      return;
+    }
+
+    const seconds = (Date.now() - state.sessionStartedAt) / 1000;
+    dom.sessionTimer.textContent = formatDuration(seconds);
+  }
+
+  function startPolling() {
+    stopPolling();
+    state.pollActive = false;
+    schedulePoll(0);
+  }
+
+  function stopPolling() {
+    state.pollActive = false;
+    if (state.pollTimer) {
+      window.clearTimeout(state.pollTimer);
+      state.pollTimer = null;
+    }
+  }
+
+  function schedulePoll(delay) {
+    if (!state.sessionId) {
+      return;
+    }
+
+    if (state.pollTimer) {
+      window.clearTimeout(state.pollTimer);
+    }
+
+    state.pollTimer = window.setTimeout(pollOnce, Math.max(0, delay));
+  }
+
+  async function pollOnce() {
+    if (!state.sessionId) {
+      return;
+    }
+
+    if (state.pollActive) {
+      schedulePoll(100);
+      return;
+    }
+
+    state.pollActive = true;
+    const started = performance.now();
+
+    try {
+      const response = await apiRequest(API.read, {
+        session_id: state.sessionId,
+        last_index: state.lastIndex
+      }, {
+        timeout: 15000
+      });
+
+      state.rtt = Math.max(0, Math.round(performance.now() - started));
+      state.lastRttAt = Date.now();
+      dom.rttValue.textContent = state.rtt + " ms";
+
+      if (!response.success) {
+        if (response.__status === 401 || response.__status === 410) {
+          handleRemoteSessionEnd(humanApiError(response, "SSH session expired."));
+          return;
+        }
+
+        handlePollFailure(humanApiError(response, "Terminal read failed."));
+        return;
+      }
+
+      state.pollBackoff = 0;
+
+      if (typeof response.last_index === "number") {
+        state.lastIndex = response.last_index;
+      }
+
+      if (response.data) {
+        writeTerminal(response.data);
+      }
+
+      if (response.closed) {
+        handleRemoteSessionEnd("Remote shell closed.");
+        return;
+      }
+
+      setConnectionState("Connected", "connected");
+      schedulePoll(response.data ? 90 : 260);
+    } catch (error) {
+      handleTransportFailure(error);
+    } finally {
+      state.pollActive = false;
+    }
+  }
+
+  function handlePollFailure(message) {
+    state.pollBackoff = Math.min(state.pollBackoff + 1, 8);
+    const delay = Math.min(5000, 250 * Math.pow(2, state.pollBackoff));
+    setConnectionState("Reconnecting…", "connecting");
+    schedulePoll(delay);
+
+    if (state.pollBackoff >= 4) {
+      toast(message, "error");
+    }
+  }
+
+  function handleTransportFailure(error) {
+    if (!state.sessionId) {
+      return;
+    }
+
+    state.pollBackoff = Math.min(state.pollBackoff + 1, 8);
+    const delay = Math.min(5000, 250 * Math.pow(2, state.pollBackoff));
+    setConnectionState("Network retry…", "connecting");
+    schedulePoll(delay);
+
+    if (state.pollBackoff >= 4) {
+      toast("WebSSH network connection is unstable.", "error");
+    }
+  }
+
+  function handleRemoteSessionEnd(message) {
+    stopPolling();
+    stopWebSocket();
+    stopSessionTimer();
+
+    const oldSession = state.sessionId;
+    state.sessionId = null;
+    state.lastIndex = 0;
+    state.writeQueue = "";
+    state.writeInFlight = false;
+
+    setConnectionState(message || "Disconnected", "error");
+
+    if (oldSession) {
+      writeTerminal(
+        "\r\n\u001b[33m[" +
+        String(message || "Disconnected") +
+        "]\u001b[0m\r\n"
+      );
+    }
+
+    if (state.settings.autoReconnect && state.password && !state.intentionalDisconnect) {
+      scheduleReconnect();
+    }
+  }
+
+  function scheduleReconnect() {
+    if (state.reconnectTimer || state.intentionalDisconnect || !state.password) {
+      return;
+    }
+
+    state.reconnecting = true;
+    state.reconnectAttempts += 1;
+
+    const delay = Math.min(
+      15000,
+      700 * Math.pow(1.6, Math.min(state.reconnectAttempts - 1, 8))
+    );
+
+    setConnectionState(
+      "Retry " + String(state.reconnectAttempts) + " in " + Math.ceil(delay / 1000) + "s",
+      "connecting"
+    );
+
+    state.reconnectTimer = window.setTimeout(async () => {
+      state.reconnectTimer = null;
+
+      if (!state.password || state.intentionalDisconnect) {
+        return;
+      }
+
+      await connect({
+        host: state.host,
+        port: state.port,
+        username: state.username,
+        password: state.password
+      });
+    }, delay);
+  }
+
+  function cancelReconnect() {
+    if (state.reconnectTimer) {
+      window.clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = null;
+    }
+    state.reconnecting = false;
+  }
+
+  async function reconnectNow() {
+    if (!state.host || !state.username || !state.password) {
+      showConnectView();
+      toast("Enter VPS credentials before reconnecting.", "error");
+      return;
+    }
+
+    cancelReconnect();
+    state.intentionalDisconnect = false;
+
+    await disconnect(false);
+
+    await connect({
+      host: state.host,
+      port: state.port,
+      username: state.username,
+      password: state.password
+    });
+  }
+
+  async function disconnect(showToast) {
+    state.intentionalDisconnect = true;
+    cancelReconnect();
+    stopPolling();
+    stopWebSocket();
+    stopSessionTimer();
+
+    if (state.writeTimer) {
+      window.clearTimeout(state.writeTimer);
+      state.writeTimer = null;
+    }
+
+    const sessionId = state.sessionId;
+    state.sessionId = null;
+    state.lastIndex = 0;
+    state.writeQueue = "";
+    state.writeInFlight = false;
+    state.sessionStartedAt = 0;
+
+    if (sessionId) {
+      try {
+        await apiRequest(API.disconnect, {
+          session_id: sessionId
+        }, {
+          timeout: 5000
+        });
+      } catch (error) {
+        /* The local state is still cleared even if the server is unreachable. */
+      }
+    }
+
+    setConnectionState("Disconnected", "");
+    dom.sessionDetail.textContent = "Disconnected";
+    showConnectView();
+
+    if (showToast) {
+      toast("SSH session disconnected.", "success");
+    }
+  }
+
+  function prepareReconnectPassword() {
+    if (state.password) {
+      return true;
+    }
+
+    if (dom.password.value) {
+      state.password = dom.password.value;
+      return true;
+    }
+
+    return false;
+  }
+
+  function startWebSocketIfConfigured() {
+    const meta = document.querySelector('meta[name="svm-websocket-url"]');
+    const metaUrl = meta ? String(meta.content || "").trim() : "";
+    const globalUrl = typeof window.SVM_WEBSSH_WS_URL === "string"
+      ? window.SVM_WEBSSH_WS_URL.trim()
+      : "";
+    const url = globalUrl || metaUrl;
+
+    if (!url) {
+      return false;
+    }
+
+    if (!state.settings.preferWebSocket) {
+      return false;
+    }
+
+    if (!window.WebSocket) {
+      return false;
+    }
+
+    if (!state.sessionId) {
+      return false;
+    }
+
+    let socketUrl = url;
+
+    try {
+      socketUrl = new URL(url, window.location.href).toString();
+    } catch (error) {
+      toast("Configured WebSocket URL is invalid.", "error");
+      return false;
+    }
+
+    stopWebSocket();
+
+    try {
+      const socket = new WebSocket(socketUrl);
+      state.ws = socket;
+
+      socket.addEventListener("open", () => {
+        if (!state.sessionId) {
+          return;
+        }
+
+        socket.send(JSON.stringify({
+          type: "attach",
+          session_id: state.sessionId
+        }));
+
+        state.transport = "websocket";
+        dom.transportValue.textContent = "WebSocket";
+        stopPolling();
+        setConnectionState("Connected", "connected");
+      });
+
+      socket.addEventListener("message", (event) => {
+        handleWebSocketMessage(event.data);
+      });
+
+      socket.addEventListener("error", () => {
+        if (state.sessionId) {
+          state.transport = "polling";
+          dom.transportValue.textContent = "Polling";
+          startPolling();
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        state.ws = null;
+
+        if (state.sessionId && !state.intentionalDisconnect) {
+          state.transport = "polling";
+          dom.transportValue.textContent = "Polling";
+          startPolling();
+        }
+      });
+
+      return true;
+    } catch (error) {
+      state.ws = null;
+      return false;
+    }
+  }
+
+  function chooseOptionalWebSocket() {
+    if (!state.settings.preferWebSocket) {
+      state.transport = "polling";
+      dom.transportValue.textContent = "Polling";
+      return;
+    }
+
+    if (!startWebSocketIfConfigured()) {
+      state.transport = "polling";
+      dom.transportValue.textContent = "Polling";
+    }
+  }
+
+  function handleWebSocketMessage(raw) {
+    let message;
+
+    try {
+      message = typeof raw === "string" ? JSON.parse(raw) : raw;
+    } catch (error) {
+      writeTerminal(String(raw));
+      return;
+    }
+
+    if (!message) {
+      return;
+    }
+
+    if (message.type === "output" || message.type === "data") {
+      writeTerminal(message.data || "");
+      return;
+    }
+
+    if (message.type === "close" || message.type === "closed") {
+      handleRemoteSessionEnd(message.error || "Remote shell closed.");
+      return;
+    }
+
+    if (message.type === "error") {
+      toast(message.error || "WebSocket error.", "error");
+      return;
+    }
+
+    if (message.type === "resize-ack") {
+      return;
+    }
+  }
+
+  function stopWebSocket() {
+    if (!state.ws) {
+      return;
+    }
+
+    try {
+      state.ws.close();
+    } catch (error) {
+      /* ignore */
+    }
+
+    state.ws = null;
+    state.transport = "polling";
+    dom.transportValue.textContent = "Polling";
+  }
+
+  async function checkHealth() {
+    dom.healthButton.disabled = true;
+    const original = dom.healthButton.textContent;
+    dom.healthButton.textContent = "Checking…";
+
+    try {
+      const response = await apiRequest(API.health, null, {
+        method: "GET",
+        timeout: 6000
+      });
+
+      if (response.__ok && response.status === "ok") {
+        state.lastHealth = response;
+        toast(
+          "SVM+ WebSSH online • " +
+          String(response.active_sessions ?? 0) +
+          " active session(s).",
+          "success"
+        );
+      } else {
+        toast(humanApiError(response, "WebSSH health check failed."), "error");
+      }
+    } catch (error) {
+      toast("WebSSH backend is unreachable.", "error");
+    } finally {
+      dom.healthButton.disabled = false;
+      dom.healthButton.textContent = original;
+    }
+  }
+
+  function startHealthMonitor() {
+    if (state.healthTimer) {
+      window.clearInterval(state.healthTimer);
+    }
+
+    state.healthTimer = window.setInterval(() => {
+      if (!state.sessionId) {
+        return;
+      }
+
+      checkHealthSilent();
+    }, 30000);
+  }
+
+  async function checkHealthSilent() {
+    try {
+      const response = await apiRequest(API.health, null, {
+        method: "GET",
+        timeout: 5000
+      });
+
+      state.lastHealth = response;
+    } catch (error) {
+      return;
+    }
+  }
+
+  function togglePassword() {
+    const hidden = dom.password.type === "password";
+    dom.password.type = hidden ? "text" : "password";
+    dom.passwordToggle.textContent = hidden ? "🙈" : "👁";
+    dom.passwordToggle.setAttribute(
+      "aria-label",
+      hidden ? "Hide password" : "Show password"
+    );
+  }
+
+  function setQuickPort(port) {
+    dom.port.value = String(port);
+    dom.port.focus();
+  }
+
+  function resetForm() {
+    dom.connectForm.reset();
+    dom.port.value = "22";
+    dom.username.value = "root";
+    dom.password.value = "";
+    showConnectError("");
+    dom.host.focus();
+  }
+
+  function clearUiData() {
+    Object.values(STORAGE).forEach(safeRemove);
+    state.settings = {
+      theme: DEFAULTS.theme,
+      fontSize: DEFAULTS.fontSize,
+      scrollback: DEFAULTS.scrollback,
+      cursor: DEFAULTS.cursor,
+      autoReconnect: DEFAULTS.autoReconnect,
+      bell: DEFAULTS.bell,
+      blink: DEFAULTS.blink,
+      preferWebSocket: DEFAULTS.preferWebSocket
+    };
+
+    setTheme("");
+    syncSettingsModal();
+    toast("Local UI preferences cleared.", "success");
+  }
+
+  function openSearch() {
+    dom.searchBar.classList.add("visible");
+    dom.searchInput.focus();
+    dom.searchInput.select();
+    updateSearchCount();
+  }
+
+  function closeSearch() {
+    dom.searchBar.classList.remove("visible");
+    dom.searchInput.value = "";
+    dom.searchCount.textContent = "0";
+    state.currentSearch = "";
+
+    if (state.search) {
+      try {
+        state.search.clearDecorations();
+      } catch (error) {
+        /* ignore */
+      }
+    }
+
+    focusTerminal();
+  }
+
+  function runSearch(direction) {
+    const term = dom.searchInput.value;
+    state.currentSearch = term;
+    state.searchDirection = direction || "next";
+
+    if (!term) {
+      dom.searchCount.textContent = "0";
+      return;
+    }
+
+    if (state.search) {
+      const options = {
+        decorations: true,
+        incremental: true,
+        regex: false,
+        caseSensitive: false,
+        wholeWord: false
+      };
+
+      const found = direction === "previous"
+        ? state.search.findPrevious(term, options)
+        : state.search.findNext(term, options);
+
+      dom.searchCount.textContent = found ? "Match" : "None";
+      return;
+    }
+
+    updateSearchCount();
+  }
+
+  function updateSearchCount() {
+    const term = dom.searchInput.value.trim();
+
+    if (!term) {
+      dom.searchCount.textContent = "0";
+      return;
+    }
+
+    const source = state.outputMirror.toLowerCase();
+    const query = term.toLowerCase();
+    let count = 0;
+    let offset = 0;
+
+    while (true) {
+      const index = source.indexOf(query, offset);
+      if (index === -1) {
+        break;
+      }
+
+      count += 1;
+      offset = index + Math.max(query.length, 1);
+
+      if (count >= 999) {
+        break;
+      }
+    }
+
+    dom.searchCount.textContent = String(count);
+  }
+
+  function changeFont(delta) {
+    state.settings.fontSize = clampInt(
+      state.settings.fontSize + delta,
+      10,
+      26
+    );
+
+    saveSettings(state.settings);
+    syncSettingsModal();
+    updateTerminalTheme();
+    safeFitTerminal();
+  }
+
+  function setFontSize(value) {
+    state.settings.fontSize = clampInt(value, 10, 26);
+    syncSettingsModal();
+    updateTerminalTheme();
+    safeFitTerminal();
+  }
+
+  function setScrollback(value) {
+    state.settings.scrollback = clampInt(value, 1000, 20000);
+    syncSettingsModal();
+
+    if (state.term) {
+      state.term.options.scrollback = state.settings.scrollback;
+    }
+  }
+
+  function setCursorStyle(value) {
+    const valid = ["block", "underline", "bar"];
+    state.settings.cursor = valid.includes(value) ? value : "block";
+    syncSettingsModal();
+    updateTerminalTheme();
+  }
+
+  function syncSettingsModal() {
+    dom.themeSelect.value = state.settings.theme;
+    dom.fontSizeRange.value = String(state.settings.fontSize);
+    dom.fontSizeLabel.textContent = String(state.settings.fontSize) + "px";
+    dom.cursorStyleSelect.value = state.settings.cursor;
+    dom.scrollbackRange.value = String(state.settings.scrollback);
+    dom.scrollbackLabel.textContent = String(state.settings.scrollback) + " lines";
+    dom.autoReconnectCheck.checked = state.settings.autoReconnect;
+    dom.bellCheck.checked = state.settings.bell;
+    dom.blinkCheck.checked = state.settings.blink;
+    dom.websocketCheck.checked = state.settings.preferWebSocket;
+  }
+
+  function openModal(element) {
+    element.classList.add("visible");
+    element.setAttribute("aria-hidden", "false");
+  }
+
+  function closeModal(element) {
+    element.classList.remove("visible");
+    element.setAttribute("aria-hidden", "true");
+  }
+
+  function openSettings() {
+    syncSettingsModal();
+    openModal(dom.settingsModal);
+  }
+
+  function saveSettingsFromModal() {
+    state.settings.theme = dom.themeSelect.value;
+    state.settings.fontSize = clampInt(dom.fontSizeRange.value, 10, 26);
+    state.settings.scrollback = clampInt(dom.scrollbackRange.value, 1000, 20000);
+    state.settings.cursor = dom.cursorStyleSelect.value;
+    state.settings.autoReconnect = dom.autoReconnectCheck.checked;
+    state.settings.bell = dom.bellCheck.checked;
+    state.settings.blink = dom.blinkCheck.checked;
+    state.settings.preferWebSocket = dom.websocketCheck.checked;
+
+    saveSettings(state.settings);
+    setTheme(state.settings.theme);
+    updateTerminalTheme();
+    safeFitTerminal();
+    closeModal(dom.settingsModal);
+    toast("Terminal settings saved.", "success");
+  }
+
+  function resetSettings() {
+    state.settings = {
+      theme: DEFAULTS.theme,
+      fontSize: DEFAULTS.fontSize,
+      scrollback: DEFAULTS.scrollback,
+      cursor: DEFAULTS.cursor,
+      autoReconnect: DEFAULTS.autoReconnect,
+      bell: DEFAULTS.bell,
+      blink: DEFAULTS.blink,
+      preferWebSocket: DEFAULTS.preferWebSocket
+    };
+
+    syncSettingsModal();
+    setTheme("");
+    updateTerminalTheme();
+    safeFitTerminal();
+    toast("Terminal settings reset.");
+  }
+
+  function openHelp() {
+    openModal(dom.helpModal);
+  }
+
+  function closeHelp() {
+    closeModal(dom.helpModal);
+  }
+
+  function requestConfirm(message, action) {
+    state.pendingConfirm = action;
+    dom.confirmText.textContent = message;
+    openModal(dom.confirmModal);
+  }
+
+  function cancelConfirm() {
+    state.pendingConfirm = null;
+    closeModal(dom.confirmModal);
+  }
+
+  function acceptConfirm() {
+    const action = state.pendingConfirm;
+    state.pendingConfirm = null;
+    closeModal(dom.confirmModal);
+
+    if (typeof action === "function") {
+      action();
+    }
+  }
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+      return;
+    }
+
+    if (dom.terminalView.requestFullscreen) {
+      dom.terminalView.requestFullscreen().catch(() => {
+        dom.app.classList.add("fullscreen-mode");
+        state.fullscreen = true;
+      });
+    } else {
+      dom.app.classList.add("fullscreen-mode");
+      state.fullscreen = true;
+    }
+  }
+
+  function handleFullscreenChange() {
+    const active = Boolean(document.fullscreenElement);
+    state.fullscreen = active;
+    dom.app.classList.toggle("fullscreen-mode", active);
+    window.setTimeout(safeFitTerminal, 100);
+  }
+
+  function updatePageBrand() {
+    const pageTitle = dom.pageTitle;
+    const botName = pageTitle ? pageTitle.dataset.botName : "";
+
+    if (botName) {
+      dom.brandTitle.textContent = "Web SSH • " + botName;
+      document.title = "Web SSH • " + botName;
+    } else {
+      dom.brandTitle.textContent = "Web SSH • SVM+";
+      document.title = "Web SSH • SVM+";
+    }
+  }
+
+  function readUrlState() {
+    const params = new URLSearchParams(window.location.search);
+
+    const host = params.get("host");
+    const port = params.get("port");
+    const username = params.get("username") || params.get("user");
+    const token = params.get("token") || params.get("t");
+
+    if (host) {
+      dom.host.value = host;
+    }
+
+    if (port) {
+      dom.port.value = port;
+    }
+
+    if (username) {
+      dom.username.value = username;
+    }
+
+    state.token = token || "";
+
+    return {
+      host,
+      port,
+      username,
+      token
+    };
+  }
+
+  async function attemptTokenConnect(token) {
+    if (!token) {
+      return;
+    }
+
+    dom.tokenBanner.classList.add("visible");
+    dom.tokenStatus.textContent = " Verifying token…";
+    setConnectionState("Verifying link…", "connecting");
+
+    try {
+      const response = await apiRequest(API.tokenConnect, {
+        token
+      }, {
+        timeout: 10000
+      });
+
+      if (!response.success) {
+        dom.tokenStatus.textContent = " Token rejected.";
+        showConnectError(
+          humanApiError(
+            response,
+            "This deployment does not accept secure WebSSH tokens."
+          )
+        );
+        setConnectionState("Disconnected", "error");
+        return;
+      }
+
+      if (response.host) {
+        dom.host.value = response.host;
+      }
+
+      if (response.port) {
+        dom.port.value = response.port;
+      }
+
+      if (response.username) {
+        dom.username.value = response.username;
+      }
+
+      if (response.password) {
+        state.password = response.password;
+      }
+
+      dom.tokenStatus.textContent = " Token verified.";
+
+      const credentials = {
+        host: normalizeHost(response.host || dom.host.value),
+        port: Number.parseInt(response.port || dom.port.value, 10),
+        username: response.username || dom.username.value.trim(),
+        password: response.password || state.password
+      };
+
+      if (!credentials.password) {
+        showConnectError("Secure token verified. Enter the VPS password to continue.");
+        return;
+      }
+
+      try {
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState(null, document.title, cleanUrl);
+      } catch (error) {
+        /* ignore */
+      }
+
+      await connect(credentials);
+    } catch (error) {
+      dom.tokenStatus.textContent = " Token service unavailable.";
+      showConnectError(
+        "Secure token connection is not available on this deployment. Enter credentials manually."
+      );
+      setConnectionState("Disconnected", "error");
+    }
+  }
+
+  function keyboardShortcut(event) {
+    const modifier = event.ctrlKey || event.metaKey;
+
+    if (modifier && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      openSearch();
+      return;
+    }
+
+    if (modifier && event.shiftKey && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      toggleFullscreen();
+      return;
+    }
+
+    if (event.key === "Escape" && dom.searchBar.classList.contains("visible")) {
+      closeSearch();
+      return;
+    }
+
+    if (event.key === "Escape" && dom.settingsModal.classList.contains("visible")) {
+      closeModal(dom.settingsModal);
+      return;
+    }
+
+    if (event.key === "Escape" && dom.helpModal.classList.contains("visible")) {
+      closeHelp();
+      return;
+    }
+
+    if (event.key === "Escape" && dom.confirmModal.classList.contains("visible")) {
+      cancelConfirm();
+    }
+  }
+
+  function beforeUnload(event) {
+    if (!state.sessionId) {
+      return;
+    }
+
+    event.preventDefault();
+    event.returnValue = "";
+  }
+
+  function pageHide() {
+    if (!state.sessionId || !navigator.sendBeacon) {
+      return;
+    }
+
+    const payload = JSON.stringify({
+      session_id: state.sessionId
+    });
+
+    try {
+      navigator.sendBeacon(
+        API.disconnect,
+        new Blob([payload], {
+          type: "application/json"
+        })
+      );
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
+  function handleWindowResize() {
+    if (!state.sessionId) {
+      return;
+    }
+
+    window.clearTimeout(state.resizeTimer);
+
+    state.resizeTimer = window.setTimeout(() => {
+      safeFitTerminal();
+      const size = currentTerminalSize();
+      updateTerminalSize(size.cols, size.rows);
+    }, 120);
+  }
+
+  function handleVisibilityChange() {
+    if (document.visibilityState === "visible") {
+      safeFitTerminal();
+
+      if (state.sessionId && state.transport === "polling") {
+        schedulePoll(0);
+      }
+    }
+  }
+
+  function setupEventListeners() {
+    dom.themeButton.addEventListener("click", cycleTheme);
+
+    dom.helpButton.addEventListener("click", openHelp);
+
+    dom.passwordToggle.addEventListener("click", togglePassword);
+
+    dom.connectForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      connect();
+    });
+
+    dom.resetButton.addEventListener("click", resetForm);
+
+    dom.healthButton.addEventListener("click", checkHealth);
+
+    dom.clearUiButton.addEventListener("click", clearUiData);
+
+    document.querySelectorAll("[data-port]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setQuickPort(button.dataset.port);
+      });
+    });
+
+    dom.disconnectButton.addEventListener("click", () => {
+      if (!state.sessionId) {
+        return;
+      }
+
+      requestConfirm(
+        "Disconnect the current SSH session?",
+        () => disconnect(true)
+      );
+    });
+
+    dom.reconnectButton.addEventListener("click", reconnectNow);
+
+    dom.copyButton.addEventListener("click", copySelection);
+
+    dom.pasteButton.addEventListener("click", pasteClipboard);
+
+    dom.clearButton.addEventListener("click", clearTerminal);
+
+    dom.fontDownButton.addEventListener("click", () => {
+      changeFont(-1);
+    });
+
+    dom.fontUpButton.addEventListener("click", () => {
+      changeFont(1);
+    });
+
+    dom.interruptButton.addEventListener("click", () => {
+      queueTerminalInput("\u0003");
+      focusTerminal();
+    });
+
+    dom.eofButton.addEventListener("click", () => {
+      queueTerminalInput("\u0004");
+      focusTerminal();
+    });
+
+    dom.fullscreenButton.addEventListener("click", toggleFullscreen);
+
+    dom.searchButton.addEventListener("click", openSearch);
+
+    dom.searchClose.addEventListener("click", closeSearch);
+
+    dom.searchPrev.addEventListener("click", () => {
+      runSearch("previous");
+    });
+
+    dom.searchNext.addEventListener("click", () => {
+      runSearch("next");
+    });
+
+    dom.searchInput.addEventListener("input", () => {
+      runSearch("next");
+    });
+
+    dom.searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runSearch(event.shiftKey ? "previous" : "next");
+      }
+    });
+
+    dom.settingsButton.addEventListener("click", openSettings);
+
+    dom.settingsClose.addEventListener("click", () => {
+      closeModal(dom.settingsModal);
+    });
+
+    dom.settingsSave.addEventListener("click", saveSettingsFromModal);
+
+    dom.settingsReset.addEventListener("click", resetSettings);
+
+    dom.themeSelect.addEventListener("change", () => {
+      setTheme(dom.themeSelect.value);
+    });
+
+    dom.fontSizeRange.addEventListener("input", () => {
+      setFontSize(dom.fontSizeRange.value);
+      dom.fontSizeLabel.textContent = String(state.settings.fontSize) + "px";
+    });
+
+    dom.cursorStyleSelect.addEventListener("change", () => {
+      setCursorStyle(dom.cursorStyleSelect.value);
+    });
+
+    dom.scrollbackRange.addEventListener("input", () => {
+      setScrollback(dom.scrollbackRange.value);
+    });
+
+    dom.autoReconnectCheck.addEventListener("change", () => {
+      state.settings.autoReconnect = dom.autoReconnectCheck.checked;
+    });
+
+    dom.bellCheck.addEventListener("change", () => {
+      state.settings.bell = dom.bellCheck.checked;
+      updateTerminalTheme();
+    });
+
+    dom.blinkCheck.addEventListener("change", () => {
+      state.settings.blink = dom.blinkCheck.checked;
+      updateTerminalTheme();
+    });
+
+    dom.websocketCheck.addEventListener("change", () => {
+      state.settings.preferWebSocket = dom.websocketCheck.checked;
+    });
+
+    dom.confirmClose.addEventListener("click", cancelConfirm);
+
+    dom.confirmCancel.addEventListener("click", cancelConfirm);
+
+    dom.confirmAccept.addEventListener("click", acceptConfirm);
+
+    dom.helpClose.addEventListener("click", closeHelp);
+
+    dom.helpDone.addEventListener("click", closeHelp);
+
+    [dom.settingsModal, dom.confirmModal, dom.helpModal].forEach((modal) => {
+      modal.addEventListener("click", (event) => {
+        if (event.target === modal) {
+          closeModal(modal);
+        }
+      });
+    });
+
+    document.addEventListener("keydown", keyboardShortcut);
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+
+    window.addEventListener("resize", handleWindowResize);
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    window.addEventListener("beforeunload", beforeUnload);
+
+    window.addEventListener("pagehide", pageHide);
+  }
+
+  function initializeUi() {
+    updatePageBrand();
+    setTheme(state.settings.theme);
+    syncSettingsModal();
+    buildMobileKeybar();
+    setupViewportFit();
+    dom.connectButton.disabled = false;
+    dom.copyButton.disabled = true;
+    setConnectionState("Disconnected", "");
+    startHealthMonitor();
+  }
+
+  function focusInitialField(urlState) {
+    if (urlState.token) {
+      return;
+    }
+
+    if (urlState.host) {
+      dom.password.focus();
+      return;
+    }
+
+    dom.host.focus();
+  }
+
+  async function boot() {
+    initializeUi();
+    setupEventListeners();
+
+    const urlState = readUrlState();
+
+    if (urlState.token) {
+      await attemptTokenConnect(urlState.token);
+      return;
+    }
+
+    focusInitialField(urlState);
+  }
+
+  window.SVMWebSSH = Object.freeze({
+    version: VERSION,
+    connect,
+    disconnect,
+    reconnect: reconnectNow,
+    checkHealth,
+    openSettings,
+    openSearch,
+    clearTerminal,
+    state
+  });
+
+  boot().catch((error) => {
+    setConnectionState("UI error", "error");
+    toast("WebSSH UI initialization failed.", "error");
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark"><title>SVM+ Admin Console</title>
+<style>
+:root{--bg:#070b12;--panel:#0d1420;--line:#1c2a3d;--text:#eef4ff;--muted:#8ea0b8;--accent:#67e8f9;--good:#42d392;--warn:#f5c451;--bad:#ff6b7a;--shadow:0 18px 60px #0008}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 10% 0%,#12304a 0,#070b12 38%,#05070b 100%);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;min-height:100vh}
+.shell{max-width:1500px;margin:auto;padding:16px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,#67e8f9,#8b5cf6);color:#041019;font-weight:900}
+.title{font-size:19px;font-weight:800}.sub{color:var(--muted);font-size:12px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:#111b29;color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;text-decoration:none;display:inline-block}
+.btn:hover{border-color:#38516f}.btn.primary{background:#0e7490;border-color:#22d3ee}.btn.danger{background:#401721;border-color:#7f2637}.btn.small{padding:4px 9px;font-size:12px}.btn:disabled{opacity:.5;cursor:wait}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+.tab{flex:0 0 auto;border:1px solid transparent;background:none;color:var(--muted);padding:8px 12px;border-radius:10px 10px 0 0;cursor:pointer;font-weight:700}
+.tab.on{color:var(--text);background:#111b29;border-color:var(--line)}
+.grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.stat,.card{background:linear-gradient(180deg,#101a29e8,#0b121de8);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.stat{padding:13px}.stat b{display:block;font-size:23px;margin-top:3px}.label{color:var(--muted);font-size:12px}
+.card{margin-top:12px;padding:14px}.card h2{font-size:15px;margin:0 0 10px}.card h3{font-size:13px;margin:12px 0 6px;color:#a5b4fc}
+.toolbar{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.input{background:#070d16;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 10px;outline:none;min-width:0}.input:focus{border-color:var(--accent)}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:640px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:#9fb0c6;font-size:11px;text-transform:uppercase;letter-spacing:.06em;background:#0a111b}tr:last-child td{border-bottom:0}
+.pill{display:inline-flex;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#182536}
+.ok{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}.mut{color:var(--muted)}
+.bar{height:8px;background:#1f2937;border-radius:6px;overflow:hidden;min-width:70px}.bar i{display:block;height:100%}
+.login{max-width:430px;margin:12vh auto;padding:24px}.login form{display:grid;gap:10px}.error{color:#ff9aa5;min-height:20px}
+.hidden{display:none!important}
+.toast{position:fixed;right:14px;bottom:14px;max-width:80vw;background:#101b2a;border:1px solid var(--line);padding:11px 14px;border-radius:12px;box-shadow:var(--shadow);z-index:10}
+.svgbox{background:#05070b;border:1px solid var(--line);border-radius:12px;padding:8px;overflow:auto;text-align:center}.svgbox img{max-width:100%;height:auto}
+.note{background:#1a2230;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:8px;padding:8px 10px;margin:6px 0}
+.note.good{border-left-color:var(--good)}.note.err{border-left-color:var(--bad)}
+pre{background:#070d16;border:1px solid var(--line);border-radius:10px;padding:10px;overflow:auto;margin:6px 0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:1000px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.row2{grid-template-columns:1fr}}
+@media(max-width:560px){.shell{padding:10px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.login{margin:8vh 12px}}
+</style></head>
+<body>
+<div id="login" class="login card">
+  <div class="brand"><div class="logo">S+</div><div><div class="title">SVM+ Admin</div><div class="sub">Protected server administration</div></div></div>
+  <p class="mut">Enter the value of <code>ADMIN_WEB_PASSWORD</code> from your <code>.env</code>.</p>
+  <form id="loginForm"><input id="secret" class="input" type="password" autocomplete="current-password" placeholder="Admin password" required><button class="btn primary">Sign in</button><div id="loginError" class="error"></div></form>
+</div>
+
+<div id="app" class="shell hidden">
+  <header class="top">
+    <div class="brand"><div class="logo">S+</div><div><div class="title">SVM+ Admin Console</div><div class="sub" id="subtitle">Loading…</div></div></div>
+    <div class="actions"><a class="btn" href="/">WebSSH</a><button class="btn" id="refresh">Refresh</button><button class="btn danger" id="logout">Logout</button></div>
+  </header>
+  <nav class="tabs" id="tabs"></nav>
+
+  <section id="tab-overview">
+    <div class="grid" id="stats"></div>
+    <div class="card"><div class="toolbar"><h2>Live status card (SVG)</h2><div class="actions">
+      <select id="svgPick" class="input"><option value="svm-live-status">Full dashboard</option><option value="nodes-vps">Nodes &amp; VPS</option><option value="ipool-detail">IP pools</option><option value="nat-status">NAT / IPv4</option><option value="resource-status">Resources</option><option value="node-status">Node monitor</option><option value="port-status">Ports</option></select>
+      <button class="btn" id="svgReload">Reload</button><a class="btn" id="svgOpen" target="_blank" rel="noopener">Open SVG</a></div></div>
+      <div class="svgbox"><img id="svgImg" alt="status"><div id="svgErr" class="mut hidden"></div></div></div>
+  </section>
+
+  <section id="tab-nodes" class="hidden">
+    <div class="card"><div class="toolbar"><h2>Nodes &amp; VPS (live)</h2><input id="vpsSearch" class="input" placeholder="Search VPS, owner, IP, node…"></div>
+      <div id="nodesBox" class="mut">Loading…</div></div>
+  </section>
+
+  <section id="tab-ip" class="hidden">
+    <div class="card"><div class="toolbar"><h2>IP pools</h2><span id="ipMeta" class="label"></span></div><div id="ipBox" class="mut">Loading…</div></div>
+    <div class="card"><div class="toolbar"><h2>NAT / IPv4 health</h2><div class="actions"><button class="btn" id="natReload">Re-check</button><button class="btn primary" id="natSync">Re-apply NAT rules</button></div></div><div id="natBox" class="mut">Loading…</div></div>
+  </section>
+
+  <section id="tab-ports" class="hidden">
+    <div class="card"><div class="toolbar"><h2>Port forwards</h2><span id="portMeta" class="label"></span></div>
+      <div class="table-wrap"><table><thead><tr><th>Public port</th><th>→ VPS port</th><th>VPS</th><th>Owner</th><th>Created</th></tr></thead><tbody id="portBody"></tbody></table></div></div>
+  </section>
+
+  <section id="tab-ssh" class="hidden">
+    <div class="card"><h2>SSH diagnose &amp; repair</h2>
+      <p class="mut">Fixes “did not return an SSH banner”. It probes the port, finds the VPS behind it and can restart sshd / rebuild the port forward.</p>
+      <form id="diagForm" class="actions"><input id="dHost" class="input" placeholder="Host (blank = this server)" style="width:230px"><input id="dPort" class="input" inputmode="numeric" placeholder="Port e.g. 34142" style="width:160px" required>
+        <button class="btn" data-heal="0">Diagnose</button><button class="btn primary" data-heal="1">Diagnose + Repair SSH</button></form>
+      <div id="diagOut"></div></div>
+  </section>
+
+  <section id="tab-sessions" class="hidden">
+    <div class="card"><div class="toolbar"><h2>Live SSH sessions</h2><span class="label">Only metadata is shown.</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Session</th><th>User</th><th>Target</th><th>Created</th><th>Last activity</th><th></th></tr></thead><tbody id="sessionBody"></tbody></table></div></div>
+  </section>
+
+  <section id="tab-admins" class="hidden">
+    <div class="card"><div class="toolbar"><h2>Admin users</h2><form id="addAdmin" class="actions"><input id="adminId" class="input" inputmode="numeric" placeholder="Discord user ID"><button class="btn primary">Add admin</button></form></div>
+      <div class="table-wrap"><table><thead><tr><th>User ID</th><th>Role</th><th>Action</th></tr></thead><tbody id="adminBody"></tbody></table></div></div>
+  </section>
+
+  <section id="tab-config" class="hidden">
+    <div class="card"><h2>Runtime configuration</h2><div class="mut">Secrets are never shown — only whether they are set.</div><pre id="cfgBox">Loading…</pre></div>
+  </section>
+</div>
+<div id="toast" class="toast hidden"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+let csrf = '', current = 'overview', nodes = [];
+const TABS = [['overview','Overview'],['nodes','Nodes & VPS'],['ip','IP Pool & NAT'],['ports','Ports'],['ssh','SSH Diagnose'],['sessions','Sessions'],['admins','Admins'],['config','Config']];
+const loaded = {};
+
+function esc(x){return String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function toast(x){const t=$('toast');t.textContent=x;t.classList.remove('hidden');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.add('hidden'),3500)}
+async function api(path, opt={}){
+  opt.headers = Object.assign({'Content-Type':'application/json'}, opt.headers||{});
+  if(csrf) opt.headers['X-SVM-CSRF'] = csrf;
+  const r = await fetch(path, Object.assign({credentials:'same-origin'}, opt));
+  let d = {}; try{ d = await r.json() }catch(e){}
+  if(r.status===401 && current && $('app') && !$('app').classList.contains('hidden') && !path.includes('/login')) { showLogin(); throw Error('Session expired - sign in again'); }
+  if(!r.ok || d.success===false) throw Error(d.error || ('HTTP '+r.status));
+  return d;
+}
+const post = (p,b)=>api(p,{method:'POST',body:JSON.stringify(b||{})});
+function statusPill(st){const s=String(st||'').toUpperCase();const c=s==='RUNNING'||s==='ONLINE'?'ok':(s==='SUSPENDED'||s==='DEGRADED'?'warn':(s==='STOPPED'||s==='OFFLINE'?'bad':'mut'));return `<span class="pill ${c}">${esc(s||'?')}</span>`}
+function pctBar(p){const v=Number(p);if(!isFinite(v))return '<span class="mut">n/a</span>';const c=v<70?'#22c55e':v<90?'#f59e0b':'#ef4444';return `<div class="bar" title="${v.toFixed(0)}%"><i style="width:${Math.min(100,v)}%;background:${c}"></i></div>`}
+function table(head, rows, empty){return `<div class="table-wrap"><table><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')||`<tr><td colspan="${head.length}" class="mut">${esc(empty||'Nothing here.')}</td></tr>`}</tbody></table></div>`}
+
+function showLogin(){ $('app').classList.add('hidden'); $('login').classList.remove('hidden'); }
+function buildTabs(){
+  $('tabs').innerHTML = TABS.map(([k,l])=>`<button class="tab ${k===current?'on':''}" data-tab="${k}">${l}</button>`).join('');
+  $('tabs').onclick = e => { const b=e.target.closest('[data-tab]'); if(b) openTab(b.dataset.tab); };
+}
+function openTab(k, force){
+  current = k; buildTabs();
+  TABS.forEach(([t])=>$('tab-'+t).classList.toggle('hidden', t!==k));
+  if(force || !loaded[k]){ loaded[k]=true; loaders[k] && loaders[k](); }
+}
+
+const loaders = {
+  async overview(){
+    const [o,c] = await Promise.all([api('/api/admin/overview'), api('/api/admin/config').catch(()=>null)]);
+    const v=o.overview;
+    const cards=[['Users',v.users],['VPS',`${v.running_vps}/${v.vps}`],['Suspended',v.suspended_vps],['Nodes',v.nodes],['SSH sessions',v.ssh_sessions],['Admins',v.admins],
+      ['IPs free',v.ip_total!=null?`${v.ip_free}/${v.ip_total}`:'—'],['IPs used',v.ip_used!=null?v.ip_used:'—'],['IP mode',v.ip_mode||'—'],['Port forwards',v.ports_active!=null?v.ports_active:'—'],['Uptime',fmtUp(v.uptime_seconds)],['Version',c?c.config.svm_plus:'—']];
+    $('stats').innerHTML = cards.map(([l,x])=>`<div class="stat"><span class="label">${l}</span><b>${esc(x)}</b></div>`).join('');
+    reloadSvg();
+  },
+  async nodes(){
+    const d = await api('/api/admin/nodes'); nodes = d.nodes||[];
+    if(d.warning) toast(d.warning);
+    renderNodes();
+  },
+  async ip(){ await Promise.all([loadIpam(), loadNat()]); },
+  async ports(){
+    const d = await api('/api/admin/ports');
+    $('portMeta').textContent = `range ${d.range[0]}-${d.range[1]} • max ${d.max_per_vps}/VPS • ${d.reserved.length} reserved`;
+    $('portBody').innerHTML = d.ports.map(p=>`<tr><td><b>${p.host_port}</b></td><td>${p.vps_port}</td><td>${esc(p.vps_container)}</td><td>${esc(p.user_id)}</td><td>${esc(p.created_at)}</td></tr>`).join('')||'<tr><td colspan="5" class="mut">No port forwards.</td></tr>';
+  },
+  async sessions(){
+    const d = await api('/api/admin/sessions');
+    $('sessionBody').innerHTML = d.sessions.map(s=>`<tr><td><code>${esc(String(s.id).slice(0,10))}…</code></td><td>${esc(s.username)}</td><td>${esc(s.host)}:${esc(s.port)}</td><td>${esc(s.created_at)}</td><td>${esc(s.last_activity)}</td><td><button class="btn danger small" data-kill="${esc(s.id)}">Disconnect</button></td></tr>`).join('')||'<tr><td colspan="6" class="mut">No active SSH sessions.</td></tr>';
+  },
+  async admins(){ renderAdmins(await api('/api/admin/admins')); },
+  async config(){ const d = await api('/api/admin/config'); $('cfgBox').textContent = JSON.stringify(d.config,null,2); },
+  ssh(){}
+};
+function fmtUp(s){s=Number(s)||0;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?`${d}d ${h}h`:(h?`${h}h ${m}m`:`${m}m`)}
+
+function reloadSvg(){
+  const t = $('svgPick').value; const url = '/api/admin/svg/'+t+'?t='+Date.now();
+  $('svgErr').classList.add('hidden'); $('svgImg').classList.remove('hidden');
+  $('svgImg').onerror = ()=>{ $('svgImg').classList.add('hidden'); $('svgErr').textContent='Could not render this card (bot still starting, or no data yet).'; $('svgErr').classList.remove('hidden'); };
+  $('svgImg').src = url; $('svgOpen').href = url;
+}
+
+function renderNodes(){
+  const q = $('vpsSearch').value.toLowerCase();
+  const out = nodes.map(n=>{
+    const h = n.host||{};
+    const list = (n.vps||[]).filter(v=>!q||JSON.stringify(v).toLowerCase().includes(q)||String(n.name).toLowerCase().includes(q));
+    const rows = list.map(v=>`<tr><td>${esc(v.id)}</td><td><b>${esc(v.container)}</b></td><td>${esc(v.owner_id)}</td><td>${statusPill(v.status)}${v.live?'':' <span class="mut" title="from database, not live">•</span>'}</td><td>${esc(v.ram)} / ${esc(v.cpu)} CPU / ${esc(v.storage)}</td><td>${esc(v.ipv4||'—')}</td><td>${esc(v.ssh_port||'—')}</td><td>${esc(v.expires||'—')}</td><td><button class="btn small" data-sshfix="${esc(v.container)}">Repair SSH</button></td></tr>`);
+    return `<h3>${statusPill(n.state)} ${esc(n.name)} <span class="mut">#${esc(n.id)} • ${n.is_local?'local':'remote'} • ${esc(n.location||'')} • ${n.vps_count}/${esc(n.capacity)} VPS</span></h3>
+      <div class="actions mut" style="margin:0 0 6px">CPU ${pctBarInline(h.cpu)} RAM ${pctBarInline(h.ram)} Disk ${esc(h.disk||'n/a')}</div>`
+      + table(['ID','VPS','Owner','Status','Resources','IPv4','SSH port','Expires',''], rows, 'No VPS on this node.');
+  });
+  $('nodesBox').innerHTML = out.join('') || '<div class="mut">No nodes yet.</div>';
+}
+function pctBarInline(v){const n=Number(v);return isFinite(n)?`<b>${n.toFixed(0)}%</b>`:'<b>n/a</b>'}
+
+async function loadIpam(){
+  const d = await api('/api/admin/ipam');
+  $('ipMeta').textContent = `mode ${d.mode} • auto-assign ${d.auto_assign?'on':'off'} • iface ${d.host_iface||'—'}` + (d.unpooled?` • ${d.unpooled} unpooled`:'');
+  $('ipBox').innerHTML = d.pools.map(p=>{
+    const rows = p.rows.map(r=>`<tr><td><b>${esc(r.address)}</b></td><td>${esc(r.status)}</td><td>${esc(r.container_name||'—')}</td><td>${esc(r.owner_id||'—')}</td><td>${esc(r.private_ip||'—')}</td><td>${esc(r.bind_mode||'—')}</td><td>${esc(r.note||'')}</td></tr>`);
+    return `<h3>${esc(p.name)} <span class="mut">${esc(p.cidr)} • IPv${p.version} • node ${esc(p.node_id||'any')}${p.enabled?'':' • DISABLED'}</span></h3>
+      <div class="actions" style="margin-bottom:6px"><span>free <b class="ok">${p.free}</b></span><span>used <b>${p.used}</b></span><span>reserved <b class="warn">${p.res}</b></span><span>total <b>${p.total}</b></span><div style="width:160px;align-self:center">${pctBar(p.util)}</div></div>`
+      + table(['Address','Status','VPS','Owner','Private IP','Mode','Note'], rows, 'Nothing allocated or reserved.')
+      + (p.free_sample.length?`<div class="mut" style="margin-top:6px">Next free: ${p.free_sample.map(esc).join(', ')}</div>`:'');
+  }).join('') || '<div class="mut">No pools yet. In Discord: <code>!ipool add &lt;name&gt; &lt;cidr&gt;</code></div>';
+}
+async function loadNat(){
+  const d = (await api('/api/admin/nat')).nat;
+  const yn = v => v===true?'<b class="ok">YES</b>':(v===false?'<b class="bad">NO</b>':'<b class="warn">unknown</b>');
+  const rows = d.rows.map(r=>`<tr><td><b>${esc(r.address)}</b></td><td>${esc(r.private_ip||'—')}</td><td>${esc(r.container||'—')}</td><td>${esc(r.bind_mode)}</td><td>${r.bind_mode==='nat'?yn(r.dnat):'—'}</td><td>${r.bind_mode==='nat'?yn(r.snat):'—'}</td><td>${yn(r.on_host)}</td></tr>`);
+  $('natBox').innerHTML = `<div class="actions" style="margin-bottom:8px"><span>mode <b>${esc(d.mode)}</b></span><span>ip_forward ${yn(d.ip_forward)}</span><span>iptables ${yn(d.iptables)}</span><span>iface <b>${esc(d.iface||'—')}</b></span></div>`
+    + (d.issues.length? d.issues.map(i=>`<div class="note">⚠️ ${esc(i)}</div>`).join('') : '<div class="note good">✅ No NAT problems found.</div>')
+    + table(['Public IP','→ Private IP','VPS','Mode','DNAT','SNAT','On host'], rows, 'No allocated IPv4 addresses.');
+}
+
+function renderAdmins(d){
+  const main = String(d.main_admin_id||d.main_admin||''); const ids = [...new Set(d.admins||[])].filter(x=>String(x)!==main);
+  $('adminBody').innerHTML = `<tr><td>${esc(main)}</td><td><span class="pill">Main Admin</span></td><td class="mut">Protected</td></tr>` + ids.map(id=>`<tr><td>${esc(id)}</td><td><span class="pill">Admin</span></td><td><button class="btn danger small" data-rmadmin="${esc(id)}">Remove</button></td></tr>`).join('');
+}
+
+// ---- events
+document.addEventListener('click', async e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  try{
+    if(b.dataset.kill){ await post('/api/admin/sessions/'+encodeURIComponent(b.dataset.kill)+'/disconnect'); toast('Session disconnected'); loaders.sessions(); }
+    else if(b.dataset.rmadmin){ if(!confirm('Remove this admin?')) return; renderAdmins(await api('/api/admin/admins/'+encodeURIComponent(b.dataset.rmadmin),{method:'DELETE',body:'{}'})); toast('Admin removed'); }
+    else if(b.dataset.sshfix){ b.disabled=true; toast('Repairing SSH… this can take up to a minute'); try{ const d = await post('/api/admin/vps/'+encodeURIComponent(b.dataset.sshfix)+'/sshfix'); toast((d.ok?'✅ ':'⚠️ ')+d.log); } finally { b.disabled=false; } }
+  }catch(x){ toast(x.message); }
+});
+$('loginForm').onsubmit = async e=>{ e.preventDefault(); $('loginError').textContent=''; try{ const d = await post('/api/admin/login',{password:$('secret').value}); csrf=d.csrf; $('secret').value=''; boot(); }catch(x){ $('loginError').textContent=x.message; } };
+$('logout').onclick = async()=>{ try{ await post('/api/admin/logout') } finally { location.reload() } };
+$('refresh').onclick = ()=>openTab(current,true);
+$('vpsSearch').oninput = renderNodes;
+$('svgPick').onchange = reloadSvg; $('svgReload').onclick = reloadSvg;
+$('natReload').onclick = ()=>loadNat().catch(x=>toast(x.message));
+$('natSync').onclick = async()=>{ try{ const d = await post('/api/admin/nat/sync'); toast(`NAT re-applied: ${d.ok} ok / ${d.failed} failed`); loadNat(); }catch(x){ toast(x.message) } };
+$('addAdmin').onsubmit = async e=>{ e.preventDefault(); try{ renderAdmins(await post('/api/admin/admins',{user_id:$('adminId').value.trim()})); $('adminId').value=''; toast('Admin added'); }catch(x){ toast(x.message) } };
+$('diagForm').onsubmit = async e=>{
+  e.preventDefault(); const heal = e.submitter && e.submitter.dataset.heal==='1';
+  $('diagOut').innerHTML = `<div class="note">Working… ${heal?'(repair can take up to a minute)':''}</div>`;
+  try{
+    const d = await post('/api/admin/ssh/diagnose',{host:$('dHost').value.trim(),port:$('dPort').value.trim(),heal});
+    const probes = d.probes.map(p=>`<tr><td>${esc(p.target)}</td><td>${statusPill(p.state==='ssh'?'RUNNING':'STOPPED')} ${esc(p.state)}</td><td>${esc(p.banner||'')}</td></tr>`);
+    if(d.private) probes.push(`<tr><td>${esc(d.private.target)} <span class="mut">(VPS private IP)</span></td><td>${statusPill(d.private.state==='ssh'?'RUNNING':'STOPPED')} ${esc(d.private.state)}</td><td>${esc(d.private.banner||'')}</td></tr>`);
+    $('diagOut').innerHTML = `<div class="note ${d.verdict.startsWith('OK')?'good':'err'}"><b>${esc(d.verdict)}</b></div>`
+      + (d.container?`<div class="mut">VPS behind this port: <b>${esc(d.container)}</b></div>`:'<div class="mut">No local VPS owns this port (remote server or not a forwarded port).</div>')
+      + table(['Target','Result','Banner'], probes) + (d.heal?`<div class="note ${d.heal.ok?'good':'err'}">Repair: ${esc(d.heal.log)}</div>`:'');
+  }catch(x){ $('diagOut').innerHTML = `<div class="note err">${esc(x.message)}</div>`; }
+};
+
+async function boot(){
+  try{
+    const m = await api('/api/admin/me'); csrf = m.csrf;
+    $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+    $('subtitle').textContent = `${m.bot_name} • v${m.version} • main admin ${m.main_admin_id}`;
+    Object.keys(loaded).forEach(k=>delete loaded[k]); openTab('overview', true);
+  }catch(x){ showLogin(); }
+}
+setInterval(()=>{ if(!$('app').classList.contains('hidden') && ['overview','sessions'].includes(current)) openTab(current,true); }, 30000);
+buildTabs(); boot();
+</script></body></html>
